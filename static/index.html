@@ -65,6 +65,7 @@
           <a class="nav-link" href="#files" data-nav="files"><i class="bi bi-folder2-open" aria-hidden="true"></i><span data-i18n="nav.files"></span></a>
           <a class="nav-link" href="#trash" data-nav="trash"><i class="bi bi-trash" aria-hidden="true"></i><span data-i18n="nav.trash"></span></a>
           <a class="nav-link" href="#library" data-nav="library"><i class="bi bi-journal-bookmark" aria-hidden="true"></i><span data-i18n="nav.library"></span></a>
+          <a class="nav-link" href="#library-io" data-nav="library-io"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span data-i18n="nav.library_io"></span></a>
           <a class="nav-link" href="#appearance" data-nav="appearance"><i class="bi bi-palette" aria-hidden="true"></i><span data-i18n="nav.appearance"></span></a>
           <a class="nav-link" href="#shortcuts" data-nav="shortcuts"><i class="bi bi-keyboard" aria-hidden="true"></i><span data-i18n="nav.shortcuts"></span></a>
           <a class="nav-link" href="#about" data-nav="about"><i class="bi bi-info-circle" aria-hidden="true"></i><span data-i18n="nav.about"></span></a>
@@ -631,6 +632,134 @@
           </section>
         </section>
 
+        <!-- Import / Export: Zotero exports and a local Zotero data folder in,
+             Zotero RDF, RIS and CSV out. See library_io.js. -->
+        <section class="view" data-view="library-io" id="library-io-panel" hidden>
+          <h2 class="view-title" data-i18n="library_io.heading"></h2>
+          <p class="view-description" data-i18n="library_io.description"></p>
+          <div class="row g-3">
+            <div class="col-12">
+              <section class="card" id="library-io-progress" hidden>
+                <div class="card-body">
+                  <div class="row g-2 align-items-center">
+                    <div class="col">
+                      <h3 class="h6 mb-0" id="library-io-progress-title"></h3>
+                      <div class="small text-body-secondary text-break" id="library-io-progress-source"></div>
+                    </div>
+                    <div class="col-auto"><span class="badge" id="library-io-progress-badge"></span></div>
+                  </div>
+                  <div class="progress mt-3" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="library-io-bar-wrap">
+                    <div class="progress-bar" id="library-io-bar"></div>
+                  </div>
+                  <div class="small mt-2" id="library-io-progress-counts"></div>
+                  <div class="alert alert-danger small mt-3 mb-0" id="library-io-progress-error" hidden></div>
+                  <details class="small mt-2" id="library-io-warnings" hidden>
+                    <summary data-i18n="library_io.warnings"></summary>
+                    <ul class="mb-0 mt-1 text-break" id="library-io-warnings-list"></ul>
+                  </details>
+                </div>
+              </section>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <section class="card h-100">
+                <div class="card-body">
+                  <h3 class="card-title h5"><i class="bi bi-upload me-2" aria-hidden="true"></i><span data-i18n="library_io.upload_heading"></span></h3>
+                  <p class="small text-body-secondary" data-i18n="library_io.upload_help"></p>
+                  <form id="library-io-upload-form" class="row g-3" novalidate>
+                    <div class="col-12 col-sm-6">
+                      <label for="library-io-upload-format" class="form-label" data-i18n="library_io.format_label"></label>
+                      <select id="library-io-upload-format" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                      <span class="form-label d-block" data-i18n="library_io.mode_label"></span>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="library-io-upload-mode" id="library-io-upload-merge" value="merge" checked />
+                        <label class="form-check-label" for="library-io-upload-merge" data-i18n="library_io.mode_merge"></label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="library-io-upload-mode" id="library-io-upload-replace" value="replace" />
+                        <label class="form-check-label" for="library-io-upload-replace" data-i18n="library_io.mode_replace"></label>
+                      </div>
+                    </div>
+                    <div class="col-12">
+                      <label for="library-io-upload-file" class="form-label" data-i18n="library_io.file_label"></label>
+                      <input id="library-io-upload-file" class="form-control" type="file" accept=".rdf,.ris,.csv,.txt,.zip" required />
+                    </div>
+                    <div class="col-12">
+                      <button type="submit" class="btn btn-primary" id="library-io-upload-button"><i class="bi bi-box-arrow-in-down me-1" aria-hidden="true"></i><span data-i18n="library_io.upload_button"></span></button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+            </div>
+
+            <div class="col-12 col-lg-6" id="library-io-local-col" hidden>
+              <section class="card h-100">
+                <div class="card-body">
+                  <h3 class="card-title h5"><i class="bi bi-pc-display me-2" aria-hidden="true"></i><span data-i18n="library_io.local_heading"></span></h3>
+                  <p class="small text-body-secondary" data-i18n="library_io.local_help"></p>
+                  <form id="library-io-local-form" class="row g-3" novalidate>
+                    <div class="col-12">
+                      <label for="library-io-local-path" class="form-label" data-i18n="library_io.path_label"></label>
+                      <input id="library-io-local-path" class="form-control font-monospace" type="text" autocomplete="off" spellcheck="false" placeholder="~/Zotero" required />
+                    </div>
+                    <div class="col-12">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="library-io-local-files" checked />
+                        <label class="form-check-label" for="library-io-local-files" data-i18n="library_io.local_files_label"></label>
+                      </div>
+                    </div>
+                    <div class="col-12">
+                      <span class="form-label d-block" data-i18n="library_io.mode_label"></span>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="library-io-local-mode" id="library-io-local-merge" value="merge" checked />
+                        <label class="form-check-label" for="library-io-local-merge" data-i18n="library_io.mode_merge"></label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="library-io-local-mode" id="library-io-local-replace" value="replace" />
+                        <label class="form-check-label" for="library-io-local-replace" data-i18n="library_io.mode_replace"></label>
+                      </div>
+                    </div>
+                    <div class="col-12">
+                      <button type="submit" class="btn btn-primary" id="library-io-local-button"><i class="bi bi-folder-symlink me-1" aria-hidden="true"></i><span data-i18n="library_io.local_button"></span></button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+            </div>
+
+            <div class="col-12">
+              <section class="card">
+                <div class="card-body">
+                  <h3 class="card-title h5"><i class="bi bi-download me-2" aria-hidden="true"></i><span data-i18n="library_io.export_heading"></span></h3>
+                  <p class="small text-body-secondary" data-i18n="library_io.export_help"></p>
+                  <form id="library-io-export-form" class="row g-3 align-items-end" novalidate>
+                    <div class="col-12 col-md-4">
+                      <label for="library-io-export-format" class="form-label" data-i18n="library_io.format_label"></label>
+                      <select id="library-io-export-format" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label for="library-io-export-collection" class="form-label" data-i18n="library_io.collection_label"></label>
+                      <select id="library-io-export-collection" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="library-io-export-files" />
+                        <label class="form-check-label" for="library-io-export-files" data-i18n="library_io.export_files_label"></label>
+                      </div>
+                    </div>
+                    <div class="col-12">
+                      <div class="form-text mb-2" id="library-io-export-note"></div>
+                      <a class="btn btn-primary" id="library-io-export-button" href="#" download><i class="bi bi-box-arrow-up me-1" aria-hidden="true"></i><span data-i18n="library_io.export_button"></span></a>
+                    </div>
+                  </form>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
         <!-- Everyone's WebDAV folders, admins only: access and quota, never
              contents. See webdav_admin.js. -->
         <section class="view" data-view="webdav-admin" id="webdav-admin-panel" hidden>
@@ -1086,6 +1215,7 @@
   <script src="/js/files.js"></script>
   <script src="/js/trash.js"></script>
   <script src="/js/library.js"></script>
+  <script src="/js/library_io.js"></script>
   <script src="/js/webdav_admin.js"></script>
   <script src="/js/sessions.js"></script>
   <script src="/js/about.js"></script>

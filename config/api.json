@@ -369,6 +369,107 @@
         ],
         "type": "object"
       },
+      "ImportStatus": {
+        "properties": {
+          "changed": {
+            "description": "Records that were new or different.",
+            "type": "integer"
+          },
+          "collections": {
+            "type": "integer"
+          },
+          "deleted": {
+            "description": "Records removed by a replace import.",
+            "type": "integer"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "files": {
+            "description": "Attachments whose files were stored.",
+            "type": "integer"
+          },
+          "files_failed": {
+            "type": "integer"
+          },
+          "files_skipped": {
+            "description": "Attachments already in the WebDAV folder with the same file.",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "items": {
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "merge",
+              "replace"
+            ],
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "reading",
+              "collections",
+              "items",
+              "files",
+              "cleanup",
+              "done",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "processed": {
+            "description": "Of collections + items + files, how many are done.",
+            "type": "integer"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "source": {
+            "description": "What was imported: the upload's name, or the data folder.",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "total": {
+            "description": "collections + items + files to do.",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "changed",
+          "collections",
+          "deleted",
+          "done",
+          "files",
+          "files_failed",
+          "files_skipped",
+          "items",
+          "processed",
+          "running",
+          "total",
+          "warnings"
+        ],
+        "type": "object"
+      },
       "Job": {
         "properties": {
           "interrupted": {
@@ -8048,6 +8149,583 @@
           }
         ],
         "summary": "Delete a collection",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/export": {
+      "get": {
+        "description": "Zotero RDF or RIS (both import into Zotero, files included) or CSV (for spreadsheets). With files=true it is a zip of the export and its files/ folder: unzip it and import the file inside with Zotero's File > Import.",
+        "operationId": "get_api_library_export",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "enum": [
+                "rdf",
+                "ris",
+                "csv"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: a zip with each attachment's files under files/, as Zotero's Export Files makes.",
+            "in": "query",
+            "name": "files",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this collection and the ones inside it.",
+            "in": "query",
+            "name": "collection",
+            "schema": {
+              "maxLength": 8,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Export your library",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/formats": {
+      "get": {
+        "description": "The formats the screen lists, with what each can do; those with neither import nor export are not done yet.",
+        "operationId": "get_api_library_formats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "chunk_bytes": {
+                      "description": "Send an upload in pieces of this size.",
+                      "type": "integer"
+                    },
+                    "formats": {
+                      "items": {
+                        "properties": {
+                          "export": {
+                            "type": "boolean"
+                          },
+                          "ext": {
+                            "type": "string"
+                          },
+                          "files": {
+                            "type": "boolean"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "import": {
+                            "type": "boolean"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "zotero_imports": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "export",
+                          "ext",
+                          "files",
+                          "id",
+                          "import",
+                          "label",
+                          "zotero_imports"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "local_paths": {
+                      "description": "Whether you may import a Zotero data folder on the server's machine: the owner, with webdav.import_local_paths on.",
+                      "type": "boolean"
+                    },
+                    "max_bytes": {
+                      "description": "The largest upload accepted.",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "chunk_bytes",
+                    "formats",
+                    "local_paths",
+                    "max_bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Import and export formats",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/import/begin": {
+      "post": {
+        "description": "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.",
+        "operationId": "post_api_library_import_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "format": {
+                    "enum": [
+                      "rdf",
+                      "ris",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "mode": {
+                    "description": "merge (the default) adds and updates; replace also removes what the import does not have.",
+                    "enum": [
+                      "merge",
+                      "replace"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "The file's name, for the status.",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "size": {
+                    "description": "The file's size in bytes.",
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "format",
+                  "name",
+                  "size"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "chunk_bytes": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "chunk_bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Start uploading an export",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/import/chunk": {
+      "post": {
+        "description": "The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not start where the last ended is refused with the offset expected.",
+        "operationId": "post_api_library_import_chunk",
+        "parameters": [
+          {
+            "description": "Where this piece starts: the bytes sent so far.",
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "From GET /api/me. Browser sessions only.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "received": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "received"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Send a piece of the export",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/import/finish": {
+      "post": {
+        "description": "Starts the import in the background. GET /api/library/import/status says how it goes.",
+        "operationId": "post_api_library_import_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Import the uploaded export",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/import/local": {
+      "post": {
+        "description": "Reads zotero.sqlite (a copy, so a running Zotero is fine) and, with files, storage/. Only with webdav.import_local_paths on. Items keep their Zotero keys.",
+        "operationId": "post_api_library_import_local",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "files": {
+                    "description": "Also copy each stored attachment's files from storage/ into your WebDAV folder.",
+                    "type": "boolean"
+                  },
+                  "mode": {
+                    "enum": [
+                      "merge",
+                      "replace"
+                    ],
+                    "type": "string"
+                  },
+                  "path": {
+                    "description": "The Zotero data folder (the one with zotero.sqlite), on the server's machine. ~ is your home folder.",
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "summary": "Import a Zotero data folder on the server",
+        "tags": [
+          "Library"
+        ],
+        "x-required-role": "owner"
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/import/status": {
+      "get": {
+        "operationId": "get_api_library_import_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "How the import is going",
         "tags": [
           "Library"
         ]

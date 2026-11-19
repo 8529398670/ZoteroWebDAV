@@ -323,6 +323,15 @@ webdav:
   # as the protocol expects. [live]
   trash_days: 30
 
+  # Let the owner import a Zotero data folder (zotero.sqlite and storage/) on
+  # the machine this server runs on, from the Import / Export screen. Always
+  # off inside the container. [live]
+  import_local_paths: true
+
+  # The largest export upload accepted on the Import / Export screen, in MB:
+  # a Zotero export with "Export Files" ticked, zipped. [live]
+  import_max_mb: 4096
+
 # [scripts] Read by docker/run.sh, which applies a change the next time it
 # runs. Edit these on the host: inside the container they are read-only.
 docker:

@@ -232,6 +232,22 @@ const Api = {
 
   // The library: what clients pushed beside the files.
   listLibraryItems( offset , params ) { return this.request( "/api/library/items" + this.query( { offset: offset , ...params } ) ); },
+  listLibraryCollections()  { return this.request( "/api/library/collections" + this.query( { limit: 1000 } ) ); },
+
+  // Import / Export (library_io.js).
+  libraryFormats()          { return this.request( "/api/library/formats" ); },
+  importStatus()            { return this.request( "/api/library/import/status" ); },
+  importBegin( fields )     { return this.post( "/api/library/import/begin" , fields ); },
+  importFinish()            { return this.post( "/api/library/import/finish" ); },
+  importLocal( fields )     { return this.post( "/api/library/import/local" , fields ); },
+  // A piece of the upload goes as raw bytes, the token in a header.
+  importChunk( offset , blob ) {
+    return this.request( "/api/library/import/chunk" + this.query( { offset: offset } ) , {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" , "X-CSRF-Token": this.csrfToken },
+      raw: blob,
+    } );
+  },
 
   // "?a=1&b=2" from the fields that have a value, or "" when none do.
   query( fields ) {

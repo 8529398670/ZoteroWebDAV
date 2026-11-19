@@ -271,7 +271,9 @@ func run() ( err error ) {
 		// An empty Server header keeps the response from advertising which
 		// framework and version is running -- free reconnaissance otherwise.
 		ServerHeader: "",
-		BodyLimit:    cfg.BodyLimit,
+		// The import upload's pieces are bigger than server.body_limit_bytes;
+		// middleware.BodyLimit holds every other route to that.
+		BodyLimit:    max( cfg.BodyLimit , routes.ImportChunkBytes + 64 * 1024 ),
 		// Timeouts are what stop a handful of slow or stalled connections
 		// from holding sockets open until the process runs out of them.
 		ReadTimeout:  15 * time.Second,
@@ -295,6 +297,7 @@ func run() ( err error ) {
 	app.Use( middleware.Recover( settings ) )
 	app.Use( middleware.SecurityHeaders( settings ) )
 	app.Use( middleware.RateLimit( settings , logger ) )
+	app.Use( middleware.BodyLimit( settings , map[string]int{ routes.ImportChunkPath: routes.ImportChunkBytes + 64 * 1024 } ) )
 	app.Use( middleware.RequestLog( logger ) )
 
 	handlers.Register( app )

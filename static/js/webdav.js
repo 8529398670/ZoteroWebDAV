@@ -23,6 +23,7 @@ const WebDAV = {
     }
     Dom.show( Dom.get( "webdav-panel" ) , true );
     Library.init( me );
+    LibraryIO.init().catch( ( error ) => App.showError( error.message ) );
 
     Dom.onSubmit( Dom.get( "webdav-claim-form" ) , this.onClaim.bind( this ) );
     Dom.onSubmit( Dom.get( "webdav-rename-form" ) , this.onRename.bind( this ) );

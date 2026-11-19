@@ -1953,6 +1953,13 @@ Can the server do real work
 | GET | [`/api/library/collections`](#get-apilibrarycollections) | Your collections | browser session or API key, anyone signed in |
 | POST | [`/api/library/collections/{collection_key}`](#post-apilibrarycollectionscollection_key) | Store a collection | browser session or API key, anyone signed in |
 | POST | [`/api/library/collections/{collection_key}/delete`](#post-apilibrarycollectionscollection_keydelete) | Delete a collection | browser session or API key, anyone signed in |
+| GET | [`/api/library/export`](#get-apilibraryexport) | Export your library | browser session or API key, anyone signed in |
+| GET | [`/api/library/formats`](#get-apilibraryformats) | Import and export formats | browser session or API key, anyone signed in |
+| POST | [`/api/library/import/begin`](#post-apilibraryimportbegin) | Start uploading an export | browser session or API key, anyone signed in |
+| POST | [`/api/library/import/chunk`](#post-apilibraryimportchunk) | Send a piece of the export | browser session or API key, anyone signed in |
+| POST | [`/api/library/import/finish`](#post-apilibraryimportfinish) | Import the uploaded export | browser session or API key, anyone signed in |
+| POST | [`/api/library/import/local`](#post-apilibraryimportlocal) | Import a Zotero data folder on the server | browser session only, the owner |
+| GET | [`/api/library/import/status`](#get-apilibraryimportstatus) | How the import is going | browser session or API key, anyone signed in |
 | GET | [`/api/library/items`](#get-apilibraryitems) | Your items | browser session or API key, anyone signed in |
 | GET | [`/api/library/items/{item_key}`](#get-apilibraryitemsitem_key) | One item | browser session or API key, anyone signed in |
 | POST | [`/api/library/items/{item_key}`](#post-apilibraryitemsitem_key) | Store an item | browser session or API key, anyone signed in |
@@ -2280,6 +2287,169 @@ Delete a collection
 | `changed` | boolean | yes |  | false when it was the same as what was stored, which then keeps its change number. |
 | `key` | string | yes |  |  |
 | `rev` | integer | yes |  | Its change number. |
+
+### GET /api/library/export
+
+Export your library
+
+Zotero RDF or RIS (both import into Zotero, files included) or CSV (for spreadsheets). With files=true it is a zip of the export and its files/ folder: unzip it and import the file inside with Zotero's File > Import.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `format` | query | string | no | one of `rdf`, `ris`, `csv` |  |
+| `files` | query | string | no | one of `true`, `false` | true: a zip with each attachment's files under files/, as Zotero's Export Files makes. |
+| `collection` | query | string | no | at most 8 characters | Only this collection and the ones inside it. |
+
+**Reply 200**: Success
+
+Raw bytes, as `application/octet-stream`.
+
+### GET /api/library/formats
+
+Import and export formats
+
+The formats the screen lists, with what each can do; those with neither import nor export are not done yet.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 401, 404, 429, 503 |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `chunk_bytes` | integer | yes |  | Send an upload in pieces of this size. |
+| `formats` | array of object | yes |  |  |
+| `formats[].export` | boolean | yes |  |  |
+| `formats[].ext` | string | yes |  |  |
+| `formats[].files` | boolean | yes |  |  |
+| `formats[].id` | string | yes |  |  |
+| `formats[].import` | boolean | yes |  |  |
+| `formats[].label` | string | yes |  |  |
+| `formats[].zotero_imports` | boolean | yes |  |  |
+| `local_paths` | boolean | yes |  | Whether you may import a Zotero data folder on the server's machine: the owner, with webdav.import_local_paths on. |
+| `max_bytes` | integer | yes |  | The largest upload accepted. |
+
+### POST /api/library/import/begin
+
+Start uploading an export
+
+Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `format` | string | yes | one of `rdf`, `ris`, `csv` |  |
+| `mode` | string | no | one of `merge`, `replace` | merge (the default) adds and updates; replace also removes what the import does not have. |
+| `name` | string | yes | 1 to 255 characters | The file's name, for the status. |
+| `size` | integer | yes | at least 1 | The file's size in bytes. |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `chunk_bytes` | integer | yes |  |  |
+
+### POST /api/library/import/chunk
+
+Send a piece of the export
+
+The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not start where the last ended is refused with the offset expected.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `offset` | query | integer | no | at least 0 | Where this piece starts: the bytes sent so far. |
+| `X-CSRF-Token` | header | string | no |  | From GET /api/me. Browser sessions only. |
+
+**Request body**
+
+Raw bytes, as `application/octet-stream`.
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `received` | integer | yes |  |  |
+
+### POST /api/library/import/finish
+
+Import the uploaded export
+
+Starts the import in the background. GET /api/library/import/status says how it goes.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+
+**Reply 202**: Success
+
+[`ImportStatus`](#importstatus).
+
+### POST /api/library/import/local
+
+Import a Zotero data folder on the server
+
+Reads zotero.sqlite (a copy, so a running Zotero is fine) and, with files, storage/. Only with webdav.import_local_paths on. Items keep their Zotero keys.
+
+|  |  |
+|---|---|
+| Who may call | browser session only, the owner |
+| Errors | 400, 403, 404, 409, 429, 503 |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `files` | boolean | no |  | Also copy each stored attachment's files from storage/ into your WebDAV folder. |
+| `mode` | string | no | one of `merge`, `replace` |  |
+| `path` | string | yes | 1 to 4096 characters | The Zotero data folder (the one with zotero.sqlite), on the server's machine. ~ is your home folder. |
+
+**Reply 202**: Success
+
+[`ImportStatus`](#importstatus).
+
+### GET /api/library/import/status
+
+How the import is going
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 401, 404, 429, 503 |
+
+**Reply 200**: Success
+
+[`ImportStatus`](#importstatus).
 
 ### GET /api/library/items
 
@@ -2895,6 +3065,30 @@ The shapes the routes above refer to by name.
 | `names[].created_at` | string (date-time) | yes |  |  |
 | `names[].name` | string | yes |  |  |
 | `names[].target` | string | yes |  |  |
+
+### ImportStatus
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `changed` | integer | yes |  | Records that were new or different. |
+| `collections` | integer | yes |  |  |
+| `deleted` | integer | yes |  | Records removed by a replace import. |
+| `done` | boolean | yes |  |  |
+| `error` | string | no |  |  |
+| `files` | integer | yes |  | Attachments whose files were stored. |
+| `files_failed` | integer | yes |  |  |
+| `files_skipped` | integer | yes |  | Attachments already in the WebDAV folder with the same file. |
+| `finished_at` | string (date-time) | no |  |  |
+| `format` | string | no |  |  |
+| `items` | integer | yes |  |  |
+| `mode` | string | no | one of `merge`, `replace` |  |
+| `phase` | string | no | one of `reading`, `collections`, `items`, `files`, `cleanup`, `done`, `failed` |  |
+| `processed` | integer | yes |  | Of collections + items + files, how many are done. |
+| `running` | boolean | yes |  |  |
+| `source` | string | no |  | What was imported: the upload's name, or the data folder. |
+| `started_at` | string (date-time) | no |  |  |
+| `total` | integer | yes |  | collections + items + files to do. |
+| `warnings` | array of string | yes |  |  |
 
 ### Job
 

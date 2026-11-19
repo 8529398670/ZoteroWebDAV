@@ -187,6 +187,8 @@ type WebDAVSection struct {
 	LogReads         bool   `yaml:"log_reads"`
 	TombstoneDays    int    `yaml:"tombstone_days"`
 	TrashDays        int    `yaml:"trash_days"`
+	ImportLocalPaths bool   `yaml:"import_local_paths"`
+	ImportMaxMB      int    `yaml:"import_max_mb"`
 }
 
 
@@ -451,6 +453,11 @@ type WebDAVConfig struct {
 	LogReads          bool
 	TombstoneDays     int
 	TrashDays         int
+	// ImportLocalPaths lets the owner import a Zotero data folder on this
+	// machine. Always off inside the container, which has no such folder.
+	ImportLocalPaths bool
+	// ImportMaxBytes caps one uploaded export (a zip with its files).
+	ImportMaxBytes int64
 }
 
 // The folders under the app directory WebDAV owns.
@@ -496,6 +503,8 @@ func webdavConfig( file *File , app_dir string , host string ) ( result WebDAVCo
 		LogReads:          section.LogReads,
 		TombstoneDays:     section.TombstoneDays,
 		TrashDays:         section.TrashDays,
+		ImportLocalPaths:  section.ImportLocalPaths && InContainer() == false,
+		ImportMaxBytes:    int64( section.ImportMaxMB ) * 1024 * 1024,
 	}
 	return
 }
@@ -793,6 +802,7 @@ func ( file *File ) Validate() ( err error ) {
 	check( dav.MinFreeMB >= 0 , "webdav.min_free_mb must be 0 or more" )
 	check( dav.TombstoneDays >= 1 && dav.TombstoneDays <= 3650 , "webdav.tombstone_days must be 1-3650" )
 	check( dav.TrashDays >= 1 && dav.TrashDays <= 3650 , "webdav.trash_days must be 1-3650" )
+	check( dav.ImportMaxMB >= 1 && dav.ImportMaxMB <= 1024 * 1024 , "webdav.import_max_mb must be 1-1048576, got %d" , dav.ImportMaxMB )
 
 	docker := file.Docker
 	check( imagePattern.MatchString( docker.Image ) , "docker.image %q is not a valid lowercase image name" , docker.Image )

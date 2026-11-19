@@ -511,6 +511,60 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 403 , 404 },
 	} , handlers.deleteLibraryCollection , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.MountStream( app , "GET" , "/api/library/export" , apidoc.Op{
+		Summary: "Export your library",
+		Description: "Zotero RDF or RIS (both import into Zotero, files included) or CSV (for spreadsheets). With files=true it is a zip of the export and its files/ folder: unzip it and import the file inside with Zotero's File > Import.",
+		Tag: "Library",
+		Feature: "webdav",
+		ReplyType: "application/octet-stream",
+		Errors: []int{ 400 , 401 , 404 },
+	} , handlers.libraryExport , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "GET" , "/api/library/formats" , apidoc.Op{
+		Summary: "Import and export formats",
+		Description: "The formats the screen lists, with what each can do; those with neither import nor export are not done yet.",
+		Tag: "Library",
+		Feature: "webdav",
+		Errors: []int{ 401 , 404 },
+	} , handlers.libraryFormats , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/import/begin" , apidoc.Op{
+		Summary: "Start uploading an export",
+		Description: "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.",
+		Tag: "Library",
+		Feature: "webdav",
+		Errors: []int{ 400 , 401 , 403 , 404 , 409 },
+	} , handlers.importBegin , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/import/chunk" , apidoc.Op{
+		Summary: "Send a piece of the export",
+		Description: "The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not start where the last ended is refused with the offset expected.",
+		Tag: "Library",
+		Feature: "webdav",
+		BodyType: "application/octet-stream",
+		Errors: []int{ 400 , 401 , 403 , 404 , 409 },
+	} , handlers.importChunk , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/import/finish" , apidoc.Op{
+		Summary: "Import the uploaded export",
+		Description: "Starts the import in the background. GET /api/library/import/status says how it goes.",
+		Tag: "Library",
+		Feature: "webdav",
+		Status: 202,
+		Errors: []int{ 400 , 401 , 403 , 404 , 409 },
+	} , handlers.importFinish , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/import/local" , apidoc.Op{
+		Summary: "Import a Zotero data folder on the server",
+		Description: "Reads zotero.sqlite (a copy, so a running Zotero is fine) and, with files, storage/. Only with webdav.import_local_paths on. Items keep their Zotero keys.",
+		Tag: "Library",
+		Access: apidoc.SessionOnly,
+		Role: apidoc.Owner,
+		Feature: "webdav",
+		Status: 202,
+		Errors: []int{ 400 , 403 , 404 , 409 },
+	} , handlers.importLocal , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireOwner )
+	apidoc.Mount( app , "GET" , "/api/library/import/status" , apidoc.Op{
+		Summary: "How the import is going",
+		Tag: "Library",
+		Feature: "webdav",
+		Errors: []int{ 401 , 404 },
+	} , handlers.importStatusRoute , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "GET" , "/api/library/items" , apidoc.Op{
 		Summary: "Your items",
 		Description: "Live items without their data, newest change first unless sort says otherwise. has_file says whether your WebDAV folder has an attachment's file.",
