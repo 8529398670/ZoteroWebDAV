@@ -278,7 +278,16 @@ func UpsertLibrary( store *db.Store , library_id uint64 , kind string , inputs [
 		}
 		return
 	} )
-	if err != nil { results = nil }
+	if err != nil {
+		results = nil
+		return
+	}
+	for _ , result := range results {
+		if result.Changed {
+			libraryChanged( library_id , false )
+			break
+		}
+	}
 	return
 }
 
@@ -297,6 +306,7 @@ func DeleteLibraryRecord( store *db.Store , library_id uint64 , kind string , ke
 		rev = tombstone.Rev
 		return
 	} )
+	if err == nil { libraryChanged( library_id , false ) }
 	return
 }
 
@@ -331,7 +341,11 @@ func DeleteLibraryItemTree( store *db.Store , library_id uint64 , key string ) (
 		}
 		return
 	} )
-	if err != nil { removed = nil }
+	if err != nil {
+		removed = nil
+		return
+	}
+	libraryChanged( library_id , false )
 	return
 }
 

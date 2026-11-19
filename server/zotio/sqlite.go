@@ -61,11 +61,23 @@ func ReadDataFolder( folder string , temp_dir string , with_files bool ) ( libra
 		}
 		if err = copyFile( source , filepath.Join( copy_dir , "zotero.sqlite" + suffix ) ); err != nil { return }
 	}
+	var files func( key string ) []File
+	if with_files { files = func( key string ) []File { return folderStorage( filepath.Join( folder , "storage" , key ) ) } }
+	library , err = readDatabase( copy_dir , files )
+	return
+}
+
+// readDatabase reads copy_dir/zotero.sqlite. files lists an attachment's
+// stored files by its key; nil leaves files out.
+func readDatabase( copy_dir string , files func( key string ) []File ) ( library *Library , err error ) {
 	db , err := sql.Open( "sqlite" , "file:" + filepath.Join( copy_dir , "zotero.sqlite" ) + "?_pragma=busy_timeout(5000)" )
 	if err != nil { return }
 	defer db.Close()
-	reader := &sqliteReader{ db: db , library: NewLibrary() , folder: folder }
-	err = reader.read( with_files )
+	reader := &sqliteReader{ db: db , library: NewLibrary() , files: files }
+	// Zotero's own keys: the import keeps them rather than matching records
+	// to ones already stored.
+	reader.library.OwnKeys = true
+	err = reader.read()
 	if err != nil {
 		err = fmt.Errorf( "reading zotero.sqlite: %w" , err )
 		return
@@ -91,7 +103,7 @@ func copyFile( source string , target string ) ( err error ) {
 type sqliteReader struct {
 	db      *sql.DB
 	library *Library
-	folder  string
+	files   func( key string ) []File
 	user    int64
 	items   map[int64]Item
 	keys    map[int64]string
@@ -115,7 +127,7 @@ func zoteroTime( value string ) ( result string ) {
 	return
 }
 
-func ( reader *sqliteReader ) read( with_files bool ) ( err error ) {
+func ( reader *sqliteReader ) read() ( err error ) {
 	if err = reader.db.QueryRow( `SELECT libraryID FROM libraries WHERE type = 'user' ORDER BY libraryID LIMIT 1` ).Scan( &reader.user ); err != nil { return }
 	if err = reader.collections(); err != nil { return }
 	reader.items = map[int64]Item{}
@@ -142,7 +154,7 @@ func ( reader *sqliteReader ) read( with_files bool ) ( err error ) {
 	for _ , step := range steps {
 		if err = step(); err != nil { return }
 	}
-	if err = reader.attachments( with_files ); err != nil { return }
+	if err = reader.attachments(); err != nil { return }
 	for _ , id := range order {
 		item := reader.items[ id ]
 		if item == nil { continue }
@@ -305,7 +317,7 @@ func ( reader *sqliteReader ) relations() ( err error ) {
 	return
 }
 
-func ( reader *sqliteReader ) attachments( with_files bool ) ( err error ) {
+func ( reader *sqliteReader ) attachments() ( err error ) {
 	err = reader.each( `
 		SELECT a.itemID , a.parentItemID , a.linkMode , a.contentType , cs.charset , a.path , a.storageModTime , a.storageHash
 		FROM itemAttachments a JOIN items i ON i.itemID = a.itemID LEFT JOIN charsets cs ON cs.charsetID = a.charsetID
@@ -334,7 +346,13 @@ func ( reader *sqliteReader ) attachments( with_files bool ) ( err error ) {
 			if name != "" { item[ "filename" ] = name }
 			if hash.Valid && hash.String != "" { item[ "md5" ] = hash.String }
 			if mtime.Valid && mtime.Int64 > 0 { item[ "mtime" ] = mtime.Int64 }
-			if with_files { reader.storage( Str( item , "key" ) ) }
+			if reader.files != nil {
+				if files := reader.files( Str( item , "key" ) ); len( files ) > 0 {
+					reader.library.Files[ Str( item , "key" ) ] = files
+				} else {
+					reader.library.warn( "no file in storage/%s" , Str( item , "key" ) )
+				}
+			}
 		case "linked_file":
 			item[ "path" ] = location.String
 		}
@@ -343,11 +361,9 @@ func ( reader *sqliteReader ) attachments( with_files bool ) ( err error ) {
 	return
 }
 
-// storage lists an attachment's folder, storage/<KEY>/: what Zotero's
+// folderStorage lists an attachment's folder, storage/<KEY>/: what Zotero's
 // WebDAV sync zips, its own .zotero files left out.
-func ( reader *sqliteReader ) storage( key string ) {
-	root := filepath.Join( reader.folder , "storage" , key )
-	files := []File{}
+func folderStorage( root string ) ( files []File ) {
 	filepath.WalkDir( root , func( full string , entry os.DirEntry , walk_err error ) error {
 		if walk_err != nil { return nil }
 		name := entry.Name()
@@ -366,9 +382,5 @@ func ( reader *sqliteReader ) storage( key string ) {
 		} )
 		return nil
 	} )
-	if len( files ) > 0 {
-		reader.library.Files[ key ] = files
-	} else {
-		reader.library.warn( "no file in storage/%s" , key )
-	}
+	return
 }

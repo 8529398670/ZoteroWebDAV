@@ -7616,6 +7616,14 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "description": "Only rows whose updated_at is after this (RFC 3339, as updated_at is written): pass the newest updated_at you have. A file removed since leaves no row, so read the whole list now and then.",
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -7630,6 +7638,10 @@
                       },
                       "type": "array"
                     },
+                    "files_stamp": {
+                      "description": "The files_stamp these rows are as of (see GET /api/library/changes).",
+                      "type": "integer"
+                    },
                     "next": {
                       "description": "Offset of the next page, or null on the last one.",
                       "type": [
@@ -7643,6 +7655,7 @@
                   },
                   "required": [
                     "attachments",
+                    "files_stamp",
                     "next",
                     "total"
                   ],
@@ -8004,7 +8017,7 @@
     },
     "/api/library/changes": {
       "get": {
-        "description": "Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true.",
+        "description": "Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true. With wait, a request with nothing to answer is held open until a record or (with files) an attachment file changes, or wait seconds pass.",
         "operationId": "get_api_library_changes",
         "parameters": [
           {
@@ -8035,6 +8048,24 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "description": "Seconds to hold the request open while nothing has changed, answering as soon as something does. 0 answers at once.",
+            "in": "query",
+            "name": "wait",
+            "schema": {
+              "maximum": 25,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "The files_stamp you last saw: with wait, a change to your attachment files answers too.",
+            "in": "query",
+            "name": "files",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -8043,6 +8074,10 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "files_stamp": {
+                      "description": "Moves whenever an attachment file arrives or goes over WebDAV (and on a server restart). When it differs from yours, ask GET /api/library/attachments?since= for what changed.",
+                      "type": "integer"
+                    },
                     "full_resync": {
                       "description": "true when since is older than the tombstones kept, so a delete may have been missed: drop what you have and read from since=0.",
                       "type": "boolean"
@@ -8064,6 +8099,7 @@
                     }
                   },
                   "required": [
+                    "files_stamp",
                     "full_resync",
                     "more",
                     "records",
@@ -8673,7 +8709,7 @@
     },
     "/api/library/import/begin": {
       "post": {
-        "description": "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.",
+        "description": "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked; or, as format zotero, Zotero's zotero.sqlite, or a zip of its data folder (zotero.sqlite and storage/), whose items keep their Zotero keys and dates.",
         "operationId": "post_api_library_import_begin",
         "parameters": [
           {
@@ -8697,10 +8733,12 @@
                     "type": "string"
                   },
                   "format": {
+                    "description": "zotero is a Zotero data folder: zotero.sqlite, or a zip of the folder with storage/. Its items keep their Zotero keys and dates.",
                     "enum": [
                       "rdf",
                       "ris",
-                      "csv"
+                      "csv",
+                      "zotero"
                     ],
                     "type": "string"
                   },
@@ -9272,6 +9310,168 @@
       },
       "x-feature": "webdav"
     },
+    "/api/library/items/move": {
+      "post": {
+        "description": "Up to 1000 moves, all in one transaction. Each takes an item to a new key, sets the fields given, points its attachments and notes at it, and leaves a tombstone under the old key, so GET /api/library/changes shows the old key going and the new one coming. An attachment's .zip and .prop in your WebDAV folder move with it. A move whose old key is not a live item, or whose new key is taken, is refused (no chains or swaps) and the rest still go. It mends a library imported from an export, which makes keys up, to Zotero's own keys and dates without importing it again.",
+        "operationId": "post_api_library_items_move",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "dry_run": {
+                    "description": "Say what would happen and change nothing.",
+                    "type": "boolean"
+                  },
+                  "items": {
+                    "items": {
+                      "properties": {
+                        "from": {
+                          "description": "The item's key now.",
+                          "maxLength": 8,
+                          "minLength": 8,
+                          "type": "string"
+                        },
+                        "set": {
+                          "description": "Fields of its Zotero JSON to set (dateAdded, dateModified, ...). key and parentItem are left alone.",
+                          "type": "object"
+                        },
+                        "to": {
+                          "description": "Its new key. Absent or the same: only set fields.",
+                          "maxLength": 8,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 1000,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "dry_run": {
+                      "type": "boolean"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "children": {
+                            "description": "Attachments and notes now pointing at the new key.",
+                            "type": "integer"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "files": {
+                            "description": "Its .zip and .prop moved with it in your WebDAV folder (or would, on a dry run).",
+                            "type": "boolean"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "enum": [
+                              "moved",
+                              "set",
+                              "unchanged",
+                              "refused"
+                            ],
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "children",
+                          "files",
+                          "from",
+                          "status",
+                          "to"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "dry_run",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Move items to other keys, or set their fields",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
     "/api/library/items/{item_key}": {
       "get": {
         "operationId": "get_api_library_items_item_key",
@@ -9655,6 +9855,63 @@
           }
         ],
         "summary": "Zotero's item fields",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/snapshot": {
+      "get": {
+        "description": "Every live item and collection with its data, and the attachment index, as of rev and files_stamp: {rev, files_stamp, items, collections, attachments}. Gzipped when you send Accept-Encoding: gzip. The ETag is rev and files_stamp, so If-None-Match answers 304 while nothing changed. Then follow GET /api/library/changes?since=rev; a record changed while this was read may come again there, which is harmless.",
+        "operationId": "get_api_library_snapshot",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Your whole library at once",
         "tags": [
           "Library"
         ]

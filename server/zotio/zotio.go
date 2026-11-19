@@ -43,6 +43,10 @@ type Library struct {
 	// Lookup, when set, is asked instead of Files: an export reading files
 	// only once it reaches them.
 	Lookup func( key string ) []File
+	// OwnKeys says the records carry the source's real keys (a Zotero data
+	// folder), so the import keeps them instead of matching each to a
+	// record already stored under another key.
+	OwnKeys bool
 	// Warnings are things skipped or not found, for the person to read.
 	Warnings []string
 }
@@ -92,6 +96,9 @@ var Formats = []Format{
 	{ ID: "rdf" , Label: "Zotero RDF" , Ext: "rdf" , Import: true , Export: true , ZoteroImports: true , Files: true },
 	{ ID: "ris" , Label: "RIS" , Ext: "ris" , Import: true , Export: true , ZoteroImports: true , Files: true },
 	{ ID: "csv" , Label: "CSV" , Ext: "csv" , Import: true , Export: true , ZoteroImports: false , Files: true },
+	// zotero.sqlite, or a zip of the data folder (zotero.sqlite and
+	// storage/): the one import that keeps Zotero's keys and dates.
+	{ ID: "zotero" , Label: "Zotero data folder (zotero.sqlite, or a zip with storage/)" , Ext: "sqlite" , Import: true , Files: true },
 	{ ID: "biblatex" , Label: "BibLaTeX" , Ext: "bib" },
 	{ ID: "bibtex" , Label: "BibTeX" , Ext: "bib" },
 	{ ID: "csljson" , Label: "CSL JSON" , Ext: "json" },

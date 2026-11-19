@@ -77,6 +77,9 @@ func checkReplies( t *testing.T ) ( handler fiber.Handler ) {
 		status := c.Response().StatusCode()
 		if err != nil || status < 200 || status > 299 { return }
 		if strings.HasPrefix( string( c.Response().Header.ContentType() ) , fiber.MIMEApplicationJSON ) == false { return }
+		// A compressed body (GET /api/library/snapshot with gzip) is checked
+		// when the same route answers uncompressed.
+		if len( c.Response().Header.Peek( fiber.HeaderContentEncoding ) ) > 0 { return }
 		once.Do( func() {
 			built , _ := apidoc.Build( documentedRoutes( c.App() ) )
 			spec , _ = apidoc.Plain( built )

@@ -41,11 +41,13 @@ const LibraryIO = {
     if ( status.running ) this.poll();
   },
 
-  // Formats this can do, then the rest, greyed out, as not done yet.
+  // Formats this can do, then the rest, greyed out, as not done yet. One
+  // that only ever goes the other way (a Zotero data folder is only read)
+  // is left out.
   fillFormats( select , what ) {
     Dom.clear( select );
     const done = this.formats.filter( ( format ) => format[ what ] );
-    const todo = this.formats.filter( ( format ) => !format[ what ] );
+    const todo = this.formats.filter( ( format ) => !format.import && !format.export );
     done.concat( todo ).forEach( ( format ) => {
       const option = Dom.el( "option" , { text: format[ what ] ? format.label : I18n.get( "library_io.todo" ).replace( "{format}" , () => format.label ) } );
       option.value = format.id;

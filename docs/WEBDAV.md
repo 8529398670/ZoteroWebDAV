@@ -123,7 +123,10 @@ Every route is in `config/api.md`.
 | `POST /api/bulk/library/items` | Push up to 100 items: `{"items":[{"item_key","version","data"}]}`. `data` is Zotero's item JSON. Unchanged ones keep their change number. |
 | `POST /api/bulk/library/collections` | The same for collections. |
 | `POST /api/library/items/{key}/delete` | Leaves a tombstone for `webdav.tombstone_days`. |
-| `GET /api/library/changes?since=<rev>` | Pull what changed, oldest first, tombstones included. Repeat with `since=rev` while `more` is true. `full_resync: true` means start again from 0. |
+| `GET /api/library/snapshot` | The whole library in one answer: `{rev, files_stamp, items, collections, attachments}`, gzipped with `Accept-Encoding: gzip`. The ETag is `rev` and `files_stamp`, so `If-None-Match` answers 304 while nothing changed. Start here, then follow `changes?since=rev`. |
+| `GET /api/library/changes?since=<rev>` | Pull what changed, oldest first, tombstones included. Repeat with `since=rev` while `more` is true. `full_resync: true` means start again from 0 (or from the snapshot). |
+| `GET /api/library/changes?since=<rev>&wait=25&files=<files_stamp>` | The same, held open for up to `wait` seconds (25 at most) while nothing changed. It answers as soon as a record changes, or, with `files`, as soon as an attachment file arrives or goes. |
+| `GET /api/library/attachments?since=<updated_at>` | Only the attachment rows whose `updated_at` is later: what to ask for when `files_stamp` moved. A removed file leaves no row, so read the whole list now and then. |
 | `POST /api/library/attachments/check` | `{"attachments":[{"key","md5"}]}` → `present` / `missing` / `different`. A file counts only with both its `.zip` and `.prop`. |
 | `GET /api/library/attachments/{key}/file` | Streams the main file (usually the PDF) straight out of the zip, with nothing unpacked on disk. |
 
@@ -137,8 +140,26 @@ Every route is in `config/api.md`.
   4. For each missing one, it PUTs `<KEY>.zip` and then `<KEY>.prop` over
      WebDAV with an app password. It never replaces a `.prop` that is already
      there.
-- **This server only.** PRMA pulls `library/changes` and streams PDFs from
-  `attachments/{key}/file`.
+- **This server only** (built: PRMA's `library.source: remote`).
+  1. On an empty cache it reads `library/snapshot` once, falling back to
+     paging through `library/changes` from 0 on a server without it.
+  2. It keeps up with `library/changes?wait=25&files=<files_stamp>`, one
+     request held open at a time. When `files_stamp` moves it asks
+     `library/attachments?since=`, and reads the whole attachment list
+     hourly to notice removed files.
+  3. It downloads a PDF from `attachments/{key}/file` only when a paper is
+     opened, or when its worker needs that one paper's PDF.
+- **Keys.** PRMA names a paper with no DOI by its Zotero item key, so the
+  server's keys should be Zotero's own. Only a Zotero data folder carries
+  them (and the items' dates): import it with `import/local` on the
+  server's machine, or upload it as format `zotero` (`zotero.sqlite`, or a
+  zip of the data folder with `storage/`). An RDF, RIS or CSV import makes
+  keys up. A data-folder import keeps its own keys rather than matching
+  records already stored, so with mode `replace` it also clears out the
+  made-up ones.
+- `files_stamp` is in microseconds, kept in memory, and moves on every
+  attachment change and on a restart. A client only compares it for
+  equality.
 - **What PRMA leaves alone.** It does not touch zotero.org. Other Zotero
   desktops download a file only when zotero.org's attachment record carries
   its mtime and md5, which Zotero sets for its own uploads.

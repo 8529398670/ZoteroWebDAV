@@ -11,6 +11,10 @@ import (
 	path "path"
 	filepath "path/filepath"
 	strings "strings"
+	utf8 "unicode/utf8"
+
+	charmap "golang.org/x/text/encoding/charmap"
+	norm "golang.org/x/text/unicode/norm"
 )
 
 // An upload is either one export file, or a zip of the folder Zotero writes
@@ -73,9 +77,11 @@ func OpenUpload( full string , format Format ) ( upload *Upload , err error ) {
 		reader.Close()
 		return
 	}
-	bundle := &zipBundle{ base: path.Dir( main.Name ) , entries: map[string]*zip.File{} }
+	bundle := &zipBundle{ base: matchName( path.Dir( main.Name ) ) , entries: map[string]*zip.File{} }
 	for _ , entry := range reader.File {
-		if strings.HasSuffix( entry.Name , "/" ) == false { bundle.entries[ entry.Name ] = entry }
+		if strings.HasSuffix( entry.Name , "/" ) { continue }
+		// Two entries that differ only in Unicode form: the first wins.
+		if _ , taken := bundle.entries[ matchName( entry.Name ) ]; taken == false { bundle.entries[ matchName( entry.Name ) ] = entry }
 	}
 	upload = &Upload{ Main: opened , Bundle: bundle , closer: reader }
 	return
@@ -83,14 +89,29 @@ func OpenUpload( full string , format Format ) ( upload *Upload , err error ) {
 
 type zipBundle struct {
 	base    string
+	// Keyed by matchName( entry name ), so the export's spelling of a name
+	// finds the zip's whatever Unicode form either was written in.
 	entries map[string]*zip.File
+}
+
+// matchName is a name in one form for matching. macOS zips can store an
+// accented name decomposed (o + combining diaeresis) where the export file
+// spells it composed, or the reverse, so both sides go to NFC. A name that
+// is not UTF-8 at all is from a zip tool that wrote the old DOS code page
+// without the UTF-8 flag: read it as CP437, as unzip does.
+func matchName( name string ) ( matched string ) {
+	if utf8.ValidString( name ) == false {
+		if decoded , err := charmap.CodePage437.NewDecoder().String( name ); err == nil { name = decoded }
+	}
+	matched = norm.NFC.String( name )
+	return
 }
 
 func ( bundle *zipBundle ) Find( name string ) ( file File , found bool ) {
 	candidates := []string{ name }
 	if decoded , err := url.PathUnescape( name ); err == nil && decoded != name { candidates = append( candidates , decoded ) }
 	for _ , candidate := range candidates {
-		candidate = strings.TrimPrefix( filepath.ToSlash( candidate ) , "file://" )
+		candidate = matchName( strings.TrimPrefix( filepath.ToSlash( candidate ) , "file://" ) )
 		wanted := path.Clean( path.Join( bundle.base , candidate ) )
 		if strings.HasPrefix( candidate , "/" ) || strings.Contains( candidate , ":" ) {
 			// An absolute path from the machine that exported: match its
@@ -116,7 +137,8 @@ func ( bundle *zipBundle ) Find( name string ) ( file File , found bool ) {
 
 func zipFile( entry *zip.File ) ( file File ) {
 	file = File{
-		Name:    path.Base( entry.Name ),
+		// Composed and UTF-8, as Zotero itself names files.
+		Name:    matchName( path.Base( entry.Name ) ),
 		Size:    int64( entry.UncompressedSize64 ),
 		ModTime: entry.Modified,
 		Open:    func() ( io.ReadCloser , error ) { return entry.Open() },

@@ -342,7 +342,7 @@ webdav:
   import_local_paths: true
 
   # The largest export upload accepted on the Import / Export screen, in MB:
-  # a Zotero export with "Export Files" ticked, zipped. [live]
+  # a Zotero export with "Export Files" ticked, or a Zotero data folder, zipped. [live]
   import_max_mb: 4096
 
 # [scripts] Read by docker/run.sh, which applies a change the next time it

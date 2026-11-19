@@ -153,3 +153,43 @@ func TestMatch( t *testing.T ) {
 		if len( library.Files[ "FILE2345" ] ) != 1 { t.Errorf( "%s: the file did not follow its attachment" , id ) }
 	}
 }
+
+// TestBundleUnicodeForms: an export that spells a file name composed finds
+// it in a zip that stored it decomposed (as macOS can), and the reverse; a
+// zip that wrote a name in CP437 without the UTF-8 flag is found too.
+func TestBundleUnicodeForms( t *testing.T ) {
+	composed := "files/118/Önerud - 2023 - EEG.pdf"
+	decomposed := "files/118/Önerud - 2023 - EEG.pdf"
+	cp437 := "files/7/M\x81ller.pdf" // ü in CP437
+	cases := []struct{ stored , named string ; flagless bool }{
+		{ decomposed , composed , false } ,
+		{ composed , decomposed , false } ,
+		{ composed , "files/118/%C3%96nerud%20-%202023%20-%20EEG.pdf" , false } ,
+		{ cp437 , "files/7/Müller.pdf" , true } ,
+	}
+	for _ , c := range cases {
+		buffer := &bytes.Buffer{}
+		writer := archive_zip.NewWriter( buffer )
+		main , _ := writer.Create( "Exported Items.rdf" )
+		main.Write( []byte( "<rdf/>" ) )
+		header := &archive_zip.FileHeader{ Name: c.stored , Method: archive_zip.Store , NonUTF8: c.flagless }
+		file , err := writer.CreateHeader( header )
+		if err != nil { t.Fatal( err ) }
+		file.Write( []byte( "%PDF-1.4" ) )
+		writer.Close()
+		path := t.TempDir() + "/upload.zip"
+		os.WriteFile( path , buffer.Bytes() , 0o600 )
+		format , _ := FindFormat( "rdf" )
+		upload , err := OpenUpload( path , format )
+		if err != nil { t.Fatal( err ) }
+		found , ok := upload.Bundle.Find( c.named )
+		upload.Close()
+		if ok == false { t.Errorf( "%q not found for %q" , c.stored , c.named ); continue }
+		if strings.HasSuffix( found.Name , ".pdf" ) == false || utf8Valid( found.Name ) == false { t.Errorf( "name %q" , found.Name ) }
+	}
+}
+
+func utf8Valid( s string ) ( ok bool ) {
+	ok = strings.ToValidUTF8( s , "�" ) == s
+	return
+}

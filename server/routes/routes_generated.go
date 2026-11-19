@@ -495,7 +495,7 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.listAttachmentFiles , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "GET" , "/api/library/changes" , apidoc.Op{
 		Summary: "What changed in your library",
-		Description: "Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true.",
+		Description: "Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true. With wait, a request with nothing to answer is held open until a record or (with files) an attachment file changes, or wait seconds pass.",
 		Tag: "Library",
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 404 },
@@ -536,7 +536,7 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.libraryFormats , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/library/import/begin" , apidoc.Op{
 		Summary: "Start uploading an export",
-		Description: "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.",
+		Description: "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked; or, as format zotero, Zotero's zotero.sqlite, or a zip of its data folder (zotero.sqlite and storage/), whose items keep their Zotero keys and dates.",
 		Tag: "Library",
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 403 , 404 , 409 },
@@ -580,6 +580,13 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 404 },
 	} , handlers.listLibraryItems , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/items/move" , apidoc.Op{
+		Summary: "Move items to other keys, or set their fields",
+		Description: "Up to 1000 moves, all in one transaction. Each takes an item to a new key, sets the fields given, points its attachments and notes at it, and leaves a tombstone under the old key, so GET /api/library/changes shows the old key going and the new one coming. An attachment's .zip and .prop in your WebDAV folder move with it. A move whose old key is not a live item, or whose new key is taken, is refused (no chains or swaps) and the rest still go. It mends a library imported from an export, which makes keys up, to Zotero's own keys and dates without importing it again.",
+		Tag: "Library",
+		Feature: "webdav",
+		Errors: []int{ 400 , 401 , 403 , 404 },
+	} , handlers.moveLibraryItems , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "GET" , "/api/library/items/{item_key}" , apidoc.Op{
 		Summary: "One item",
 		Tag: "Library",
@@ -606,6 +613,14 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Feature: "webdav",
 		Errors: []int{ 401 , 404 },
 	} , handlers.getLibrarySchema , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.MountStream( app , "GET" , "/api/library/snapshot" , apidoc.Op{
+		Summary: "Your whole library at once",
+		Description: "Every live item and collection with its data, and the attachment index, as of rev and files_stamp: {rev, files_stamp, items, collections, attachments}. Gzipped when you send Accept-Encoding: gzip. The ETag is rev and files_stamp, so If-None-Match answers 304 while nothing changed. Then follow GET /api/library/changes?since=rev; a record changed while this was read may come again there, which is harmless.",
+		Tag: "Library",
+		Feature: "webdav",
+		ReplyType: "application/json",
+		Errors: []int{ 400 , 401 , 404 },
+	} , handlers.librarySnapshot , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/login" , apidoc.Op{
 		Summary: "Redeem a login link",
 		Tag: "Sign-in",

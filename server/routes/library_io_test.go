@@ -11,6 +11,9 @@ import (
 	time "time"
 
 	fiber "github.com/gofiber/fiber/v3"
+
+	models "zoterowebdav/server/models"
+	zotio "zoterowebdav/server/zotio"
 )
 
 // sendPiece posts one upload piece as raw bytes, the way the page does.
@@ -74,4 +77,35 @@ func TestUploadPiecesInAnyOrder( t *testing.T ) {
 	stored , err := os.ReadFile( path )
 	if err != nil { t.Fatal( err ) }
 	if bytes.Equal( stored , whole ) == false { t.Fatalf( "stored %d bytes, not the file" , len( stored ) ) }
+}
+
+// A Zotero data folder's keys are the real ones: imported over records an
+// export import gave made-up keys, it replaces them instead of being
+// matched back onto them. An export with no keys still matches.
+func TestImportKeepsOwnKeys( t *testing.T ) {
+	fixture := libraryFixture( t )
+	fixture.cfg.AppDir = t.TempDir()
+	user := fixture.alice.ID
+	article := func( key string ) zotio.Item {
+		return zotio.Item{ "key": key , "itemType": "journalArticle" , "title": "No DOI Here" , "date": "2020" }
+	}
+	run := func( own bool , key string ) ( keys map[string]bool ) {
+		t.Helper()
+		library := zotio.NewLibrary()
+		library.OwnKeys = own
+		library.Items = []zotio.Item{ article( key ) }
+		fixture.handlers.runImport( user , importFor( user ) , "replace" , func() ( *zotio.Library , func() , error ) {
+			return library , func() {} , nil
+		} )
+		records , err := models.ListLibrary( fixture.store , user , models.LibraryKindItem )
+		if err != nil { t.Fatal( err ) }
+		keys = map[string]bool{}
+		for _ , record := range records {
+			if record.Deleted == false { keys[ record.Key ] = true }
+		}
+		return
+	}
+	if keys := run( false , "MADE2345" ); keys[ "MADE2345" ] == false { t.Fatalf( "first import: %v" , keys ) }
+	if keys := run( false , "OTHR2345" ); keys[ "MADE2345" ] == false || keys[ "OTHR2345" ] { t.Fatalf( "an export matches what is stored: %v" , keys ) }
+	if keys := run( true , "REAL2345" ); keys[ "REAL2345" ] == false || keys[ "MADE2345" ] { t.Fatalf( "a data folder keeps its keys: %v" , keys ) }
 }

@@ -100,6 +100,7 @@ func changeDAVAttachment( store *db.Store , library_id uint64 , key string , cha
 		tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( library_id , key ) , row )
 		return
 	} )
+	if err == nil { libraryChanged( library_id , true ) }
 	return
 }
 
@@ -159,12 +160,54 @@ func ListDAVAttachments( store *db.Store , library_id uint64 ) ( rows []*DAVAtta
 // dav-reconcile's answer after reading the folder itself.
 func ReplaceDAVAttachments( store *db.Store , library_id uint64 , rows []*DAVAttachment ) ( err error ) {
 	sort.Slice( rows , func( i int , j int ) bool { return rows[ i ].Key < rows[ j ].Key } )
+	changed := false
 	err = store.Write( func( tx *db.Tx ) ( tx_err error ) {
+		// A row that says what it said before keeps its updated_at, so
+		// GET /api/library/attachments?since= answers only real changes.
+		before := map[string]*DAVAttachment{}
+		tx_err = tx.ForEachPrefix( db.BucketDAVAttachments , encryption.Uint64ToBytes( library_id ) , nil ,
+			func() any { return &DAVAttachment{} } ,
+			func( _ []byte , item any ) bool {
+				row := item.( *DAVAttachment )
+				before[ row.Key ] = row
+				return true
+			} )
+		if tx_err != nil { return }
+		changed = len( before ) != len( rows )
+		for _ , row := range rows {
+			if old := before[ row.Key ]; old != nil && old.sameFiles( row ) {
+				row.UpdatedAt = old.UpdatedAt
+			} else {
+				changed = true
+			}
+		}
 		if tx_err = tx.DeletePrefix( db.BucketDAVAttachments , encryption.Uint64ToBytes( library_id ) ); tx_err != nil { return }
 		for _ , row := range rows {
 			if tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( library_id , row.Key ) , row ); tx_err != nil { return }
 		}
 		return
 	} )
+	if err == nil && changed { libraryChanged( library_id , true ) }
+	return
+}
+
+func ( row *DAVAttachment ) sameFiles( other *DAVAttachment ) ( same bool ) {
+	same = row.MTime == other.MTime && row.MD5 == other.MD5 && row.HasProp == other.HasProp &&
+		row.ZipSize == other.ZipSize && row.HasZip == other.HasZip
+	return
+}
+
+// MoveDAVAttachment moves from's index row to to, once its files have been
+// renamed in the folder.
+func MoveDAVAttachment( store *db.Store , library_id uint64 , from string , to string ) ( err error ) {
+	err = store.Write( func( tx *db.Tx ) ( tx_err error ) {
+		row := &DAVAttachment{}
+		if tx_err = tx.Get( db.BucketDAVAttachments , attachmentKey( library_id , from ) , row ); tx_err != nil { return }
+		row.Key , row.UpdatedAt = to , time.Now().UTC()
+		if tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( library_id , to ) , row ); tx_err != nil { return }
+		tx_err = tx.Delete( db.BucketDAVAttachments , attachmentKey( library_id , from ) )
+		return
+	} )
+	if err == nil { libraryChanged( library_id , true ) }
 	return
 }

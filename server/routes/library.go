@@ -369,9 +369,12 @@ type libraryChangesRequest struct {
 	libraryQuery
 	Since uint64 `json:"since,omitempty" query:"since" jsonschema:"minimum=0" jsonschema_description:"The rev of the last change you have. 0 for everything." error:"since must be 0 or more"`
 	Limit int    `json:"limit,omitempty" query:"limit" jsonschema:"minimum=1,maximum=1000,default=500" jsonschema_description:"Records to return. Default 500." error:"limit must be 1-1000"`
+	Wait  int    `json:"wait,omitempty" query:"wait" jsonschema:"minimum=0,maximum=25" jsonschema_description:"Seconds to hold the request open while nothing has changed, answering as soon as something does. 0 answers at once." error:"wait must be 0-25"`
+	Files int64  `json:"files,omitempty" query:"files" jsonschema_description:"The files_stamp you last saw: with wait, a change to your attachment files answers too." error:"files must be a number"`
 }
 
 type libraryChangesReply struct {
+	FilesStamp int64 `json:"files_stamp" jsonschema_description:"Moves whenever an attachment file arrives or goes over WebDAV (and on a server restart). When it differs from yours, ask GET /api/library/attachments?since= for what changed."`
 	Records    []libraryRecordReply `json:"records" jsonschema_description:"Changed items and collections, with their data, oldest change first. Deleted ones have deleted: true and no data."`
 	Rev        uint64               `json:"rev" jsonschema_description:"Pass this as since next time: the last change in records, or the library's last change once there are no more."`
 	More       bool                 `json:"more" jsonschema_description:"true when there are more changes after these: ask again with since=rev."`
@@ -384,16 +387,46 @@ type libraryChangesReply struct {
 //     tag="Library", feature="webdav",
 //     description="Items and collections changed after since, with their data, oldest change first, deletes "
 //         "included as tombstones. Ask again with since=rev while more is true. A since older than the "
-//         "tombstones kept answers full_resync: true.",
+//         "tombstones kept answers full_resync: true. With wait, a request with nothing to answer is held open "
+//         "until a record or (with files) an attachment file changes, or wait seconds pass.",
 // )
 func ( handlers *Handlers ) libraryChanges( c fiber.Ctx , in *libraryChangesRequest ) ( reply *libraryChangesReply , err error ) {
 	user_id , err := handlers.libraryOf( c , in.Library )
 	if err != nil { return }
+	if in.Wait < 0 || in.Wait > 25 {
+		err = refuse( fiber.StatusBadRequest , "wait must be 0-25" )
+		return
+	}
+	deadline := time.Now().Add( time.Duration( in.Wait ) * time.Second )
+	for {
+		var changed <-chan struct{}
+		// Taken before looking, so a change in between still wakes us.
+		if in.Wait > 0 { changed = models.WatchLibrary( user_id ) }
+		reply , err = handlers.changesOnce( user_id , in )
+		quiet := err == nil && len( reply.Records ) == 0 && reply.FullResync == false && reply.Rev <= in.Since &&
+			( in.Files == 0 || reply.FilesStamp == in.Files )
+		left := time.Until( deadline )
+		if in.Wait == 0 || quiet == false || left <= 0 {
+			if changed != nil { models.UnwatchLibrary( user_id , changed ) }
+			return
+		}
+		timer := time.NewTimer( left )
+		select {
+		case <-changed:
+			timer.Stop()
+		case <-timer.C:
+			models.UnwatchLibrary( user_id , changed )
+			return
+		}
+	}
+}
+
+func ( handlers *Handlers ) changesOnce( user_id uint64 , in *libraryChangesRequest ) ( reply *libraryChangesReply , err error ) {
 	limit := in.Limit
 	if limit == 0 { limit = 500 }
 	last , purged , err := models.LibraryRev( handlers.Store , user_id )
 	if err != nil { return }
-	reply = &libraryChangesReply{ Records: []libraryRecordReply{} , Rev: last }
+	reply = &libraryChangesReply{ Records: []libraryRecordReply{} , Rev: last , FilesStamp: models.LibraryFilesStamp( user_id ) }
 	if in.Since > 0 && in.Since < purged {
 		reply.FullResync = true
 		return
@@ -431,12 +464,14 @@ func ( attachmentRow ) APIName() ( name string ) { name = "Attachment"; return }
 
 type attachmentsReply struct {
 	Attachments []attachmentRow `json:"attachments"`
+	FilesStamp  int64           `json:"files_stamp" jsonschema_description:"The files_stamp these rows are as of (see GET /api/library/changes)."`
 	Paged
 }
 
 type listAttachmentsRequest struct {
 	libraryQuery
 	Page
+	Since string `json:"since,omitempty" query:"since" jsonschema_description:"Only rows whose updated_at is after this (RFC 3339, as updated_at is written): pass the newest updated_at you have. A file removed since leaves no row, so read the whole list now and then." error:"since must be an RFC 3339 time"`
 }
 
 // listAttachments is the attachment files your WebDAV folder holds, as the
@@ -450,13 +485,22 @@ type listAttachmentsRequest struct {
 func ( handlers *Handlers ) listAttachments( c fiber.Ctx , in *listAttachmentsRequest ) ( reply *attachmentsReply , err error ) {
 	library_id , err := handlers.libraryOf( c , in.Library )
 	if err != nil { return }
+	var since time.Time
+	if in.Since != "" {
+		if since , err = time.Parse( time.RFC3339Nano , in.Since ); err != nil {
+			err = refuse( fiber.StatusBadRequest , "since must be an RFC 3339 time" )
+			return
+		}
+	}
+	stamp := models.LibraryFilesStamp( library_id )
 	rows , err := models.ListDAVAttachments( handlers.Store , library_id )
 	if err != nil { return }
 	built := make( []attachmentRow , 0 , len( rows ) )
 	for _ , row := range rows {
+		if since.IsZero() == false && row.UpdatedAt.After( since ) == false { continue }
 		built = append( built , attachmentRow( *row ) )
 	}
-	reply = &attachmentsReply{}
+	reply = &attachmentsReply{ FilesStamp: stamp }
 	reply.Attachments , reply.Paged = cutPage( built , in.Page )
 	return
 }

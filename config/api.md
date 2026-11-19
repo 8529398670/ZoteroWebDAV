@@ -1987,10 +1987,12 @@ Can the server do real work
 | POST | [`/api/library/import/local`](#post-apilibraryimportlocal) | Import a Zotero data folder on the server | browser session only, the owner |
 | GET | [`/api/library/import/status`](#get-apilibraryimportstatus) | How the import is going | browser session or API key, anyone signed in |
 | GET | [`/api/library/items`](#get-apilibraryitems) | Your items | browser session or API key, anyone signed in |
+| POST | [`/api/library/items/move`](#post-apilibraryitemsmove) | Move items to other keys, or set their fields | browser session or API key, anyone signed in |
 | GET | [`/api/library/items/{item_key}`](#get-apilibraryitemsitem_key) | One item | browser session or API key, anyone signed in |
 | POST | [`/api/library/items/{item_key}`](#post-apilibraryitemsitem_key) | Store an item | browser session or API key, anyone signed in |
 | POST | [`/api/library/items/{item_key}/delete`](#post-apilibraryitemsitem_keydelete) | Delete an item | browser session or API key, anyone signed in |
 | GET | [`/api/library/schema`](#get-apilibraryschema) | Zotero's item fields | browser session or API key, anyone signed in |
+| GET | [`/api/library/snapshot`](#get-apilibrarysnapshot) | Your whole library at once | browser session or API key, anyone signed in |
 
 ### POST /api/bulk/library/collections
 
@@ -2119,12 +2121,14 @@ Every attachment in your WebDAV folder's zotero/, by key: whether its .zip and .
 | `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
+| `since` | query | string | no |  | Only rows whose updated_at is after this (RFC 3339, as updated_at is written): pass the newest updated_at you have. A file removed since leaves no row, so read the whole list now and then. |
 
 **Reply 200**: Success
 
 | Field | Type | Required | Limits | Description |
 |---|---|---|---|---|
 | `attachments` | array of [`Attachment`](#attachment) | yes |  |  |
+| `files_stamp` | integer | yes |  | The files_stamp these rows are as of (see GET /api/library/changes). |
 | `next` | integer or null | yes |  | Offset of the next page, or null on the last one. |
 | `total` | integer | yes |  |  |
 
@@ -2216,7 +2220,7 @@ The files in one attachment
 
 What changed in your library
 
-Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true.
+Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true. With wait, a request with nothing to answer is held open until a record or (with files) an attachment file changes, or wait seconds pass.
 
 |  |  |
 |---|---|
@@ -2230,11 +2234,14 @@ Items and collections changed after since, with their data, oldest change first,
 | `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `since` | query | integer | no | at least 0 | The rev of the last change you have. 0 for everything. |
 | `limit` | query | integer | no | 1 to 1000; default `500` | Records to return. Default 500. |
+| `wait` | query | integer | no | 0 to 25 | Seconds to hold the request open while nothing has changed, answering as soon as something does. 0 answers at once. |
+| `files` | query | integer | no |  | The files_stamp you last saw: with wait, a change to your attachment files answers too. |
 
 **Reply 200**: Success
 
 | Field | Type | Required | Limits | Description |
 |---|---|---|---|---|
+| `files_stamp` | integer | yes |  | Moves whenever an attachment file arrives or goes over WebDAV (and on a server restart). When it differs from yours, ask GET /api/library/attachments?since= for what changed. |
 | `full_resync` | boolean | yes |  | true when since is older than the tombstones kept, so a delete may have been missed: drop what you have and read from since=0. |
 | `more` | boolean | yes |  | true when there are more changes after these: ask again with since=rev. |
 | `records` | array of [`LibraryRecordWithData`](#libraryrecordwithdata) | yes |  | Changed items and collections, with their data, oldest change first. Deleted ones have deleted: true and no data. |
@@ -2389,7 +2396,7 @@ The formats the screen lists, with what each can do; those with neither import n
 
 Start uploading an export
 
-Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.
+Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked; or, as format zotero, Zotero's zotero.sqlite, or a zip of its data folder (zotero.sqlite and storage/), whose items keep their Zotero keys and dates.
 
 |  |  |
 |---|---|
@@ -2407,7 +2414,7 @@ Then send the file in pieces to POST /api/library/import/chunk, and start the im
 | Field | Type | Required | Limits | Description |
 |---|---|---|---|---|
 | `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
-| `format` | string | yes | one of `rdf`, `ris`, `csv` |  |
+| `format` | string | yes | one of `rdf`, `ris`, `csv`, `zotero` | zotero is a Zotero data folder: zotero.sqlite, or a zip of the folder with storage/. Its items keep their Zotero keys and dates. |
 | `mode` | string | no | one of `merge`, `replace` | merge (the default) adds and updates; replace also removes what the import does not have. |
 | `name` | string | yes | 1 to 255 characters | The file's name, for the status. |
 | `size` | integer | yes | at least 1 | The file's size in bytes. |
@@ -2555,6 +2562,47 @@ Live items without their data, newest change first unless sort says otherwise. h
 | `rev` | integer | yes |  | Your library's last change number. |
 | `total` | integer | yes |  |  |
 
+### POST /api/library/items/move
+
+Move items to other keys, or set their fields
+
+Up to 1000 moves, all in one transaction. Each takes an item to a new key, sets the fields given, points its attachments and notes at it, and leaves a tombstone under the old key, so GET /api/library/changes shows the old key going and the new one coming. An attachment's .zip and .prop in your WebDAV folder move with it. A move whose old key is not a live item, or whose new key is taken, is refused (no chains or swaps) and the rest still go. It mends a library imported from an export, which makes keys up, to Zotero's own keys and dates without importing it again.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `dry_run` | boolean | no |  | Say what would happen and change nothing. |
+| `items` | array of object | yes |  |  |
+| `items[].from` | string | yes | 8 to 8 characters | The item's key now. |
+| `items[].set` | object | no |  | Fields of its Zotero JSON to set (dateAdded, dateModified, ...). key and parentItem are left alone. |
+| `items[].to` | string | no | at most 8 characters | Its new key. Absent or the same: only set fields. |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `dry_run` | boolean | yes |  |  |
+| `results` | array of object | yes |  |  |
+| `results[].children` | integer | yes |  | Attachments and notes now pointing at the new key. |
+| `results[].error` | string | no |  |  |
+| `results[].files` | boolean | yes |  | Its .zip and .prop moved with it in your WebDAV folder (or would, on a dry run). |
+| `results[].from` | string | yes |  |  |
+| `results[].status` | string | yes | one of `moved`, `set`, `unchanged`, `refused` |  |
+| `results[].to` | string | yes |  |  |
+
 ### GET /api/library/items/{item_key}
 
 One item
@@ -2661,6 +2709,27 @@ Zotero's item fields
 |---|---|---|---|---|
 | `creator_types` | map of array of string | yes |  | Each item type's creator types, the main one first. |
 | `item_types` | map of array of string | yes |  | Each Zotero item type's fields, in Zotero's order. |
+
+### GET /api/library/snapshot
+
+Your whole library at once
+
+Every live item and collection with its data, and the attachment index, as of rev and files_stamp: {rev, files_stamp, items, collections, attachments}. Gzipped when you send Accept-Encoding: gzip. The ETag is rev and files_stamp, so If-None-Match answers 304 while nothing changed. Then follow GET /api/library/changes?since=rev; a record changed while this was read may come again there, which is harmless.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+
+**Reply 200**: Success
+
+An empty object.
 
 ## WebDAV
 

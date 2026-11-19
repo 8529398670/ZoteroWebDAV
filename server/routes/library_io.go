@@ -159,7 +159,7 @@ func ( handlers *Handlers ) libraryFormats( c fiber.Ctx , in *apidoc.None ) ( re
 
 type importBeginRequest struct {
 	libraryQuery
-	Format string `json:"format" jsonschema:"enum=rdf,enum=ris,enum=csv" error:"format must be rdf, ris or csv"`
+	Format string `json:"format" jsonschema:"enum=rdf,enum=ris,enum=csv,enum=zotero" jsonschema_description:"zotero is a Zotero data folder: zotero.sqlite, or a zip of the folder with storage/. Its items keep their Zotero keys and dates." error:"format must be rdf, ris, csv or zotero"`
 	Mode   string `json:"mode,omitempty" jsonschema:"enum=merge,enum=replace" jsonschema_description:"merge (the default) adds and updates; replace also removes what the import does not have." error:"mode must be merge or replace"`
 	Name   string `json:"name" jsonschema:"minLength=1,maxLength=255" jsonschema_description:"The file's name, for the status." error:"name must be 1-255 characters"`
 	Size   int64  `json:"size" jsonschema:"minimum=1" jsonschema_description:"The file's size in bytes." error:"size must be 1 or more"`
@@ -182,7 +182,8 @@ func ( state *importState ) busy() ( running bool ) {
 //     tag="Library", feature="webdav", errors=(409,),
 //     description="Then send the file in pieces to POST /api/library/import/chunk, and start the import with "
 //         "POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes "
-//         "with Export Files ticked.",
+//         "with Export Files ticked; or, as format zotero, Zotero's zotero.sqlite, or a zip of its data folder "
+//         "(zotero.sqlite and storage/), whose items keep their Zotero keys and dates.",
 // )
 func ( handlers *Handlers ) importBegin( c fiber.Ctx , in *importBeginRequest ) ( reply *importBeginReply , err error ) {
 	format , found := zotio.FindFormat( in.Format )
@@ -308,8 +309,20 @@ func ( handlers *Handlers ) importFinish( c fiber.Ctx , in *libraryQuery ) ( rep
 	format , _ := zotio.FindFormat( upload.format )
 	// The upload stays open until the import ends: its files are read from
 	// it as they are copied.
+	temp_dir , _ := handlers.importDir()
 	go handlers.runImport( user_id , state , upload.mode , func() ( library *zotio.Library , done func() , read_err error ) {
 		done = func() { os.Remove( upload.path ) }
+		if format.ID == "zotero" {
+			var closer io.Closer
+			library , closer , read_err = zotio.ReadDataUpload( upload.path , temp_dir )
+			if closer != nil {
+				done = func() {
+					closer.Close()
+					os.Remove( upload.path )
+				}
+			}
+			return
+		}
 		opened , read_err := zotio.OpenUpload( upload.path , format )
 		if read_err != nil { return }
 		done = func() {
@@ -413,7 +426,9 @@ func ( handlers *Handlers ) runImport( user_id uint64 , state *importState , mod
 		fail( err )
 		return
 	}
-	// Records with no key of their own find the ones already here.
+	// Records with no key of their own find the ones already here. A Zotero
+	// data folder's keys are the real ones: matching would put them back
+	// under keys an earlier export import made up.
 	stored := map[string][]zotio.Item{}
 	for _ , kind := range []string{ models.LibraryKindItem , models.LibraryKindCollection } {
 		records , list_err := models.ListLibrary( handlers.Store , user_id , kind )
@@ -429,7 +444,7 @@ func ( handlers *Handlers ) runImport( user_id uint64 , state *importState , mod
 			}
 		}
 	}
-	zotio.Match( library , stored[ models.LibraryKindItem ] , stored[ models.LibraryKindCollection ] )
+	if library.OwnKeys == false { zotio.Match( library , stored[ models.LibraryKindItem ] , stored[ models.LibraryKindCollection ] ) }
 	attachments := 0
 	for _ , item := range library.Items {
 		if len( library.Files[ zotio.Str( item , "key" ) ] ) > 0 { attachments += 1 }
