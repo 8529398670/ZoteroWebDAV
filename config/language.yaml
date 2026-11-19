@@ -1,0 +1,812 @@
+# Every piece of text the UI can show lives here, and nowhere else.
+#
+# Two rules make this useful rather than just indirection:
+#
+#   1. Translating or rewording the app is an edit to this file plus a
+#      restart. No HTML or JS changes, no rebuild.
+#   2. A key that is missing or empty ("") hides its element entirely. That
+#      is how you turn a label, a button, or a whole section off without
+#      touching the markup -- set it to "" and it disappears rather than
+#      rendering blank or showing a raw key name.
+#
+# This file is served to any visitor at /api/language, signed in or not, since
+# the signed-out page needs text too. Never put anything secret in it.
+
+app:
+  title: "ZoteroWebDAV"
+  tagline: "Sign in with a login link."
+
+# The sidebar, one entry per signed-in screen. menu labels the header's
+# button that opens/collapses it.
+nav:
+  menu: "Menu"
+  close: "Close"
+  skip: "Skip to content"
+  # What a screen reader calls the two sets of links.
+  top_label: "Top bar"
+  sidebar_label: "Screens"
+  # The browser tab, per screen. {screen} is the screen's heading.
+  page_title: "{screen} · {app}"
+  # Foot of the sidebar, for admins.
+  version: "Version {version}"
+  account: "Account"
+  webdav: "WebDAV"
+  files: "Files"
+  trash: "Trash"
+  library: "Library"
+  appearance: "Appearance"
+  shortcuts: "Shortcuts"
+  about: "About"
+  admin_heading: "Admin"
+  users: "Users"
+  webdav_admin: "WebDAV folders"
+  all_keys: "All API keys"
+  logs: "Logs"
+  jobs: "Jobs"
+  settings: "Settings"
+
+# Short confirmations shown as a toast at the bottom of the screen.
+ui:
+  saved: "Saved."
+  copied: "Copied."
+  copy: "Copy"
+  # The ... button on a table row. {name} is the row.
+  more_actions: "More actions for {name}"
+  # Saving something that has not changed.
+  unchanged: "Nothing to save."
+  # Where the browser refuses to copy (plain http), the text is selected instead.
+  copy_hint: "Selected. Press Ctrl+C, or Cmd+C on a Mac, to copy."
+  load_more: "Load more"
+  no_matches: "Nothing matches."
+  loading: "Loading"
+  cancel: "Cancel"
+  save: "Save"
+  # The name a screen reader gives a value that edits in place, and its tooltip.
+  # {label} says what it is, {value} what it holds now.
+  edit: "Edit {label}: {value}"
+  confirm: "Yes, go ahead"
+  qr_button: "QR code"
+  qr_label: "QR code for the link above"
+  show_password: "Show password"
+
+# The Shortcuts screen, and the list ? opens (static/js/shortcuts.js). Empty
+# heading to leave both out; the keys still work. An action's label set to ""
+# leaves it off the lists but keeps it working.
+shortcuts:
+  heading: "Keyboard shortcuts"
+  description: "Change any key to suit you. Your choices are saved to your account, so they work on every device you sign in on."
+  # {os} is one of the os_ names below.
+  detected: "Showing keys for {os}. On another computer they switch to its keys by themselves."
+  os_mac: "macOS"
+  os_windows: "Windows"
+  os_linux: "Linux"
+  table_action: "Action"
+  table_keys: "Keys"
+  table_buttons: "Change"
+  change: "Change"
+  change_named: "Change the keys for {name}"
+  turn_off: "Turn off"
+  turn_off_named: "Turn off the keys for {name}"
+  reset: "Reset"
+  reset_named: "Put back the usual keys for {name}"
+  reset_all: "Put every key back"
+  press_keys: "Press the new keys… (Esc to cancel)"
+  off: "Off"
+  or: "or"
+  # {keys} is what was pressed, {other} the action that has it, {name} the one being changed.
+  conflict: "{keys} is already {other}. Use it for {name} instead? {other} gets {name}'s old keys."
+  escape_note: "Esc always closes a dialog too, whatever you set here."
+  list_change: "Change shortcuts"
+  # The actions.
+  search: "Go to this screen's search box"
+  help: "Show the list of shortcuts"
+  undo: "Undo"
+  redo: "Redo"
+  edit_save: "Save a name you are editing"
+  edit_cancel: "Cancel editing a name"
+  close_dialog: "Close a dialog"
+
+# Coming back to a tab that was left open (static/js/fresh.js).
+fresh:
+  new_version: "A new version is available."
+  reload: "Reload"
+
+# Ctrl+Z / Ctrl+Y (static/js/undo.js). The toast reads "<undone> <label>",
+# e.g. "Undone: theme change", with a Redo button. Actions that announce
+# themselves ("Name changed · Undo") use the label alone, capitalised, so a
+# label is a phrase that reads after "Undone:". "nothing" is shown when there
+# is nothing left to undo or redo; it is empty, so that toast is off. Empty
+# button keys drop the button and keep the toast.
+undo:
+  webdav_rename: "WebDAV name change"
+  webdav_password_deleted: "app password deleted"
+  webdav_trashed: "moved to trash"
+  webdav_access: "WebDAV access change"
+  webdav_name_lock: "WebDAV name lock"
+  webdav_quota: "quota change"
+  undone: "Undone:"
+  redone: "Redone:"
+  nothing: ""
+  failed: "That could not be undone."
+  conflict: "It was changed somewhere else in the meantime, so it was left as it is."
+  button: "Undo"
+  redo_button: "Redo"
+  theme: "theme change"
+  theme_new: "new theme"
+  theme_copy: "theme duplicated"
+  theme_delete: "theme deleted"
+  theme_rename: "theme renamed"
+  theme_color: "color change"
+  theme_button: "button style change"
+  theme_reset: "colors reset"
+  theme_defaults_mine: "back to the default themes"
+  theme_defaults: "default themes change"
+  shortcuts: "shortcut change"
+  ip_name: "address name deleted"
+  sidebar: "sidebar"
+  rename: "name changed"
+  rename_key: "API key name changed"
+  rename_session: "device name changed"
+  deleted_key: "API key deleted"
+  settings: "settings change"
+
+# The Appearance screen (static/js/themes_editor.js). Light is always the
+# default. Names for the built-in themes in static/js/theme.js, used until a
+# list is saved; a saved list keeps its own names.
+theme:
+  heading: "Appearance"
+  tab_mine: "My themes"
+  tab_defaults: "Defaults for everyone"
+  description: "Pick the theme you use, or make your own. Your themes follow you to every browser you sign in on."
+  defaults_description: "The themes everyone starts with. People who have not changed their own list see changes here at once; people who have keep theirs."
+  in_use: "In use"
+  use: "Use"
+  edit: "Edit {name}"
+  new: "New theme"
+  new_name: "New theme"
+  copy_name: "{name} copy"
+  duplicate: "Duplicate"
+  delete: "Delete"
+  back_to_defaults: "Go back to the defaults"
+  restore_built_in: "Restore the built-in themes"
+  name: "Theme name"
+  mode: "Light or dark"
+  mode_light: "Light"
+  mode_dark: "Dark"
+  base_heading: "Colors"
+  fine_heading: "Fine-tune"
+  fine_help: "Worked out from the colors above so text stays readable. Change any of them; Reset puts the readable color back."
+  reset: "Reset"
+  reset_title: "Back to the color worked out for readable text"
+  reset_all: "Reset all fine-tuning"
+  auto: "Auto"
+  hex: "hex code"
+  color_base_accent: "Main color (buttons)"
+  color_base_second: "Second color (where you are)"
+  color_base_background: "Page"
+  color_base_surface: "Cards"
+  color_text: "Text"
+  color_background: "Page, tinted"
+  color_surface: "Card, tinted"
+  color_nested: "Card inside a card"
+  color_chrome: "Sidebar"
+  color_bar: "Bar across the top"
+  color_bar_text: "Bar text"
+  color_border: "Borders"
+  color_row_odd: "Table rows"
+  color_row_even: "Table rows, every other one"
+  color_link: "Links"
+  color_nav_link: "Sidebar links"
+  color_accent_fg: "Button text"
+  color_accent_text: "Outline button"
+  color_second_text: "Headings"
+  color_second_fg: "Current sidebar item text"
+  color_info: "Info box"
+  color_info_border: "Info box border"
+  buttons_heading: "Buttons"
+  buttons_help: "How every button in this theme looks. Its colors are worked out from the ones above so their labels stay readable; change any of them, and Reset puts the readable color back."
+  button_shape: "Corners"
+  button_shape_square: "Square"
+  button_shape_soft: "Soft"
+  button_shape_rounded: "Rounded"
+  button_shape_pill: "Pill"
+  button_weight: "Weight"
+  button_weight_normal: "Normal"
+  button_weight_medium: "Medium"
+  button_weight_bold: "Bold"
+  button_depth: "Depth"
+  button_depth_flat: "Flat"
+  button_depth_raised: "Raised"
+  button_depth_glossy: "Glossy"
+  button_case: "Letters"
+  button_case_normal: "As written"
+  button_case_upper: "Capitals"
+  variant_secondary: "Secondary"
+  variant_success: "Success"
+  variant_danger: "Danger"
+  variant_warning: "Warning"
+  variant_info: "Info"
+  variant_light: "Light"
+  variant_dark: "Dark"
+  color_btn_fill: "{variant} button"
+  color_btn_fg: "{variant} button text"
+  color_btn_text: "{variant} outline button"
+  check_button_variant: "{variant} button text"
+  check_outline_variant: "{variant} outline button on a card"
+  hard_to_read: "Some text in this theme is hard to read:"
+  ratio: "contrast {ratio}:1, needs 4.5:1"
+  check_text_card: "Text on a card"
+  check_text_nested: "Text on a card inside a card"
+  check_text_info: "Text in an info box"
+  check_link: "Links"
+  check_button: "Button text"
+  check_outline_primary: "Outline button on a card"
+  check_heading: "Headings"
+  check_active_nav: "The current sidebar item"
+  check_sidebar_link: "Sidebar links"
+  check_top_bar: "Text on the bar across the top"
+  check_row_odd: "Text in a table row"
+  check_row_even: "Text in every other table row"
+  check_link_row: "Links in every other table row"
+  preview_nav: "Here"
+  preview_nav_other: "Elsewhere"
+  preview_card: "A card"
+  preview_heading: "A heading"
+  preview_text: "Some text and"
+  preview_link: "a link"
+  preview_info: "An info box"
+  # {n} counts the rows.
+  preview_row: "Table row {n}"
+  preview_button: "Button"
+  preset_default: "Default"
+  preset_ocean: "Ocean"
+  preset_forest: "Forest"
+  preset_sepia: "Sepia"
+  preset_grape: "Grape"
+  preset_cerise: "Cerise"
+  preset_pink: "Pink"
+  preset_wsu: "WSU"
+  preset_osu: "OSU"
+  preset_midnight: "Midnight"
+  preset_slate: "Slate"
+
+signed_out:
+  heading: "You are not signed in"
+  body: "There is no signup form here on purpose. Ask an admin for a login link."
+  invalid_link: "That login link is invalid, expired, cancelled, or used up. Ask for a new one."
+  sign_in_expired: "That sign-in took too long and has expired. Start again."
+  session_ended: "You have been signed out. Your session ended, or it was signed out from another device."
+
+login_confirm:
+  heading: "Sign in"
+  body: "This is a login link for one account. It may work only once, so open it on the device you mean to use."
+  # {name} is replaced with the account currently signed in.
+  switch_warning: "You are signed in as {name}. Continuing signs you out of that account and into the one this link is for."
+  button: "Sign in"
+
+# How many times a login link works and for how long: the choices on the
+# create-user form and the New link and Sign in on another device dialogs,
+# and how a link is described afterwards. {count}, {used}, {max} are numbers,
+# {date} a date, {name} an account's display name.
+login_links:
+  uses_label: "Works"
+  uses_once: "Once"
+  uses_times: "{count} times"
+  uses_unlimited: "Any number of times"
+  expires_label: "Expires"
+  expires_default: "Default"
+  expires_help: "Default is the auth setting: short for a link that works once, longer for one that works more than once."
+  expires_30m: "In 30 minutes"
+  expires_1h: "In 1 hour"
+  expires_1d: "In 1 day"
+  expires_7d: "In 7 days"
+  expires_30d: "In 30 days"
+  expires_90d: "In 90 days"
+  expires_never: "Never"
+  make_button: "Make link"
+  works_once: "Works once"
+  works_times: "Works up to {count} times"
+  works_unlimited: "Works any number of times"
+  until: "until {date}"
+  never_expires: "never expires"
+  # On a user's row and the Account screen: the link they could still use.
+  live: "Link: {used} of {max} used, {expires}"
+  live_unlimited: "Link: used {used} times, {expires}"
+  cancel_button: "Cancel link"
+  cancel_confirm: "Stop {name}'s login link working? Devices already signed in stay signed in."
+  cancelled_toast: "{name}'s login link has stopped working."
+  my_live: "Your login link: {used} of {max} used, {expires}."
+  my_live_unlimited: "Your login link: used {used} times, {expires}."
+  my_cancel_confirm: "Stop your login link working? Devices already signed in stay signed in."
+  my_cancelled_toast: "Your login link has stopped working."
+
+# The Account screen: a card per thing about you. Password, PIN, two-factor,
+# API keys and "where you're signed in" are cards here too, under their own
+# sections below.
+account:
+  heading: "Account"
+  profile_heading: "Your name"
+  logout_description: "Sign out of this browser. Other devices stay signed in."
+  display_name_label: "Display name"
+  display_name_placeholder: "Your name"
+  save_button: "Save"
+  logout_button: "Log out"
+  device_heading: "Sign in on another device"
+  device_description: "Make a login link for your own account and open it on your phone or another computer. It can work once, or several times until it expires. Making a new one cancels the link you had; devices already signed in stay signed in."
+  device_button: "Make a login link"
+  device_link_notice: "Open this on the other device. {summary}."
+  copy_button: "Copy"
+
+# Where this account is signed in, on the Account screen (static/js/sessions.js).
+sessions:
+  empty: "No other devices."
+  user_empty: "Not signed in anywhere."
+  user_heading: "Where {name} is signed in"
+  heading: "Where you're signed in"
+  description: "Every device with this account open. If you don't recognise one, sign it out and change how you sign in."
+  table_device: "Device"
+  table_ip: "Address"
+  table_seen: "Last active"
+  table_signed_in: "Signed in"
+  table_actions: "Actions"
+  this_device: "This device"
+  # {browser} and {system} are worked out from what the device said it was.
+  device_name: "{browser} on {system}"
+  unknown_device: "Unknown device"
+  unknown: "Unknown"
+  revoke_button: "Sign out"
+  # Empty this string to stop asking for confirmation.
+  revoke_confirm: "Sign this device out? It will need a new way in."
+  revoke_others_button: "Sign out all other devices"
+  # Empty this string to stop asking for confirmation.
+  revoke_others_confirm: "Sign out every device but this one? They will need a new way in."
+
+# The two-factor card on Account, and the step every sign-in shows on an account with
+# it on.
+two_factor:
+  copy_secret_button: "Copy"
+  download_button: "Download"
+  recovery_filename: "recovery-codes.txt"
+  heading: "Two-factor sign-in"
+  description: "Ask for a code from an authenticator app every time you sign in in a browser, whichever way you sign in. API keys are not affected."
+  status_on: "On"
+  status_off: "Off"
+  start_button: "Set up"
+  setup_scan: "Scan this with your authenticator app."
+  setup_manual: "Or enter this key by hand:"
+  setup_code_label: "The 6-digit code it shows"
+  confirm_button: "Turn on"
+  recovery_notice: "Save these recovery codes somewhere safe. Each one works once, in place of a code, if you lose your phone. They are shown only now."
+  copy_button: "Copy"
+  done_button: "Done"
+  disable_button: "Turn off"
+  code_label: "Code from your app, or a recovery code"
+  step_heading: "Enter your code"
+  step_body: "This account has two-factor sign-in on. Enter the code from your authenticator app, or a recovery code."
+  step_button: "Sign in"
+
+admin:
+  empty: "No one to show."
+  search_label: "Search by name"
+  sessions_button: "Sessions"
+  heading: "Admin"
+  description: "Create an account by minting a login link and send it to the person. It works once unless you choose otherwise."
+  create_heading: "Add someone"
+  list_heading: "People"
+  new_name_label: "Name"
+  new_name_placeholder: "Their name"
+  new_role_label: "Role"
+  role_user: "user"
+  role_admin: "admin"
+  create_button: "Create login link"
+  link_notice: "{summary}. Send it now: it is shown once and cannot be recovered, and any earlier link for this person has stopped working."
+  copy_button: "Copy"
+  table_name: "Name"
+  table_role: "Role"
+  table_status: "Status"
+  table_created: "Created"
+  table_actions: "Actions"
+  status_active: "active"
+  status_disabled: "disabled"
+  two_factor_badge: "2FA"
+  reissue_button: "New link"
+  # The New link dialog: its heading, and the line under the choices.
+  reissue_heading: "New login link for {name}"
+  reissue_confirm: "A link {name} could still use stops working."
+  # Above the link, so it is clear whose it is.
+  link_for: "Login link for {name}"
+  revoke_button: "Revoke access"
+  # {name} is replaced with the account's display name.
+  revoke_confirm: "End every session, login link and API key that {name} has? The account stays enabled; send them a new link to let them back in."
+  reset_two_factor_button: "Reset 2FA"
+  # {name} is replaced with the account's display name.
+  reset_two_factor_confirm: "Turn off two-factor sign-in for {name}? Do this only if you are sure it is them asking."
+  make_admin_button: "Make admin"
+  make_user_button: "Make user"
+  make_admin_confirm: "Make {name} an admin? They can then manage accounts. This signs them out everywhere and stops their login link, so send them a new link."
+  make_user_confirm: "Take admin rights from {name}? It applies at once. Their admin API keys drop to user level."
+  role_changed_toast: "{name} is now: {role}"
+  disable_button: "Disable"
+  # {name} is replaced with the account's display name. Empty this string to
+  # stop asking for confirmation before disabling.
+  disable_confirm: "Disable {name}? They are signed out everywhere, their login link stops working, and their API keys stop until the account is enabled again."
+  # Shown once it is done. {name} as above. Empty either to switch it off.
+  disabled_toast: "{name} disabled"
+  revoked_toast: "{name} is signed out everywhere, and their links and keys have stopped working."
+  two_factor_reset_toast: "Two-factor sign-in reset for {name}."
+  enabled_toast: "{name} enabled. They may need a new link to sign in."
+  enable_button: "Enable"
+  delete_button: "Delete"
+  # Empty this string to stop asking for confirmation before deleting.
+  delete_confirm: "Permanently delete {name}? Their sessions, login links and API keys go with the account, and it cannot be undone. Disable the account instead if they might come back."
+  # Shown after the role of the one owner account, e.g. "admin (owner)".
+  owner_label: "owner"
+
+api_keys:
+  empty: "No API keys yet."
+  all_empty: "No one has an API key yet."
+  search_label: "Search by name"
+  all_search_label: "Search by name or owner"
+  live_only_label: "Hide revoked and expired keys"
+  heading: "API keys"
+  description: "For scripts, cron jobs, and other services. A key does exactly what your account can do -- send it as an Authorization: Bearer header. It is shown once."
+  name_label: "What is it for"
+  name_placeholder: "Bot-1"
+  role_label: "Permission"
+  role_user: "user"
+  role_admin: "admin (can manage accounts)"
+  # Under the description, with a link to the API reference: api.json in
+  # app.repo, or this server's own copy.
+  spec_text: "What a key can call:"
+  spec_link: "API reference (api.json)"
+  # Beside it: the same reference as tables, config/api.md, on the repository's
+  # site when app.repo is set, else on this server's /docs/api page.
+  doc_link: "readable version (api.md)"
+  days_label: "Expires in (days)"
+  days_placeholder: "leave blank for the default, 0 for never"
+  create_button: "Create key"
+  secret_notice: "Copy this now. It is shown once and cannot be recovered -- if you lose it, revoke the key and create another."
+  copy_button: "Copy"
+  table_name: "Name"
+  table_role: "Permission"
+  table_status: "Status"
+  table_last_used: "Last used"
+  table_expires: "Expires"
+  table_actions: "Actions"
+  status_active: "active"
+  status_revoked: "revoked"
+  status_expired: "expired"
+  never: "never"
+  # Empty expiry_button to take the button away.
+  expiry_button: "Expiry"
+  # {name} is the key's name.
+  expiry_heading: "Change when {name} expires"
+  expiry_help: "Counted from today. 0 means it never expires."
+  expiry_changed: "Expiry changed."
+  # Letting a key make a login link for your account (an agent signing you in
+  # on a browser). Off by default; the button shows the state it is in.
+  # Empty both button strings to take the switch away.
+  sign_in_off_button: "Sign-in links: off"
+  sign_in_on_button: "Sign-in links: on"
+  # Beside the status while it is on.
+  status_sign_in: "can sign in"
+  # Asked before turning it on. Empty it to stop asking.
+  sign_in_confirm: "Let this key make sign-in links for your account? Whoever holds the key could then open a browser signed in as you, with everything you can do there. Each link works once, for 15 minutes. You can turn this off again at any time."
+  sign_in_turned_on: "This key can now make sign-in links."
+  sign_in_turned_off: "This key can no longer make sign-in links. Any unused link it made has stopped working."
+  revoke_button: "Revoke"
+  # Empty this string to stop asking for confirmation before revoking.
+  revoke_confirm: "Revoke this key? Anything using it stops working immediately."
+  delete_button: "Delete"
+  # Under a key an admin made for someone else. {name} is that admin.
+  created_by: "Created by {name}"
+  # Followed by when, as in "Created 3 days ago".
+  created: "Created"
+
+# The readable API and MCP references (static/docs.html, static/js/docs.js):
+# /docs/api and /docs/mcp, linked from the API keys and MCP cards when
+# app.repo is not set.
+docs:
+  api_title: "API reference"
+  mcp_title: "MCP tools"
+  back: "Back to Account"
+  loading: "Loading..."
+  failed: "The reference could not be loaded. Sign in, then try again."
+
+# The About screen (static/js/about.js), in the menu while app.show_about is on.
+about:
+  heading: "About"
+  version: "Version"
+  source: "Source"
+  api_reference: "API reference"
+  api_link: "api.json"
+admin_keys:
+  heading: "All API keys"
+  description: "Every key in this app and who owns it. Revoke or delete one to cut off whatever is using it, right away."
+  table_owner: "Owner"
+  create_heading: "Create a key for someone"
+  create_description: "The key acts as that person, at no more than their permission, and they can see that you made it."
+  list_heading: "Every key"
+  user_label: "Account"
+
+# The Logs screen (owner only; static/js/logs.js). Placeholders in {braces}
+# are filled in by the page. Days are UTC dates; times are the viewer's own.
+# kind_* label both the filter buttons and each row's badge.
+logs:
+  heading: "Logs"
+  description: "Everything this app has recorded: every request, every sign-in and admin action, and what people did on the page. Only you, the owner, can see this. Typed values, passwords and links are never recorded."
+  search_label: "Search"
+  search_placeholder: "Search, e.g. status:5xx user:ana -kind:request"
+  search_help: "Words match anywhere. Narrow with kind: user: status: path: ip: level: action: — commas mean or (kind:auth,admin), a leading minus excludes."
+  kinds_label: "Show only"
+  kind_request: "Request"
+  kind_ui: "Page"
+  kind_auth: "Sign-in"
+  kind_admin: "Admin"
+  kind_error: "Error"
+  kind_system: "System"
+  live_button: "Live"
+  live_lost: "Live updates stopped. Press Live to try again."
+  prune_button: "Prune now"
+  # Empty this string to stop asking for confirmation.
+  prune_confirm: "Apply the retention rules from config.yaml now? Old days are compressed or deleted."
+  # {deleted} and {compressed} are counts of days.
+  pruned: "Pruned: {deleted} days deleted, {compressed} compressed."
+  # {days} {used} {max} {gzip} come from config.yaml's logs section.
+  settings_line: "Keeping {days} days, up to {max} (now {used}). Days older than {gzip} are compressed."
+  encrypted: "Encrypted on disk."
+  not_encrypted: "Not encrypted on disk."
+  dropped: "{count} entries dropped under load since start."
+  no_matches: "Nothing matches."
+  # The calendar that picks which day shows. {date} is a day, {count} a number.
+  calendar_label: "Pick a day"
+  prev_month: "Previous month"
+  next_month: "Next month"
+  today_button: "Today"
+  day_button: "{date}: {count} entries"
+  day_matches: "{date}: {count} matches"
+  day_empty: "Nothing logged on this day."
+  entries: "entries: {count}"
+  matches: "matches: {count}"
+  errors: "errors: {count}"
+  compressed: "compressed"
+  download_button: "Download"
+  delete_button: "Delete day"
+  # {date} is the day. Empty this string to stop asking for confirmation.
+  delete_confirm: "Delete every entry from {date}? This cannot be undone."
+  deleted: "Deleted {date}."
+  # Names for addresses. {count} is how many, {ip} the address, {name} the name.
+  ip_names_heading: "Names for addresses ({count})"
+  ip_names_empty: "No names yet. Click an address in the log to name it."
+  ip_names_add: "Add a name"
+  ip_name_title: "Name an address"
+  ip_name_button: "Name {ip}"
+  ip_name_label: "Name"
+  ip_target_label: "Address or range"
+  ip_target_help: "One address, or a range such as 10.0.0.0/24. The most specific name wins."
+  ip_name_delete: "Delete"
+  ip_named: "Named {name}."
+  table_ip_name: "Name"
+  table_ip_target: "Address"
+  table_ip_actions: "Actions"
+  load_more: "Load more"
+  table_time: "Time"
+  table_kind: "Kind"
+  table_user: "Who"
+  table_what: "What"
+  table_ip: "IP"
+  anonymous: "signed out"
+  via_key: "(API key)"
+
+# The Jobs screen (owner only; static/js/jobs.js). A job you add can have a
+# name here, as job_<name> with dashes as underscores; one without shows its
+# own name.
+jobs:
+  empty: "No background jobs."
+  heading: "Jobs"
+  description: "What this app does by itself in the background, and how each job went last. Only you, the owner, can see this."
+  table_name: "Job"
+  table_status: "Status"
+  table_last: "Last run"
+  table_next: "Next run"
+  table_note: "Result"
+  table_actions: "Actions"
+  status_running: "Running"
+  status_ok: "OK"
+  status_failed: "Failed"
+  status_interrupted: "Interrupted"
+  status_never: "Not run yet"
+  never: "Never"
+  run_button: "Run now"
+  job_purge: "Clear out expired records"
+  job_prune_logs: "Apply log retention"
+  job_backup: "Scheduled backup"
+  job_dav_reconcile: "WebDAV upkeep"
+
+# The Settings screen (owner only; static/js/settings.js): config.yaml, one
+# field per setting. Placeholders in {braces} are filled in by the page. The
+# help text under each field is the comment above that key in
+# config/defaults.yaml, not something set here.
+settings:
+  heading: "Settings"
+  description: "This is config.yaml, the file that configures this app. Saving writes only what you changed into the file, keeping its comments. Each setting says when a change takes effect. The file can also be edited by hand: the server notices within a few seconds."
+  file: "{file}"
+  secret_note: "The secret key is in {path}. It is never shown here; back it up with the database."
+  apply_live: "Live"
+  apply_live_help: "Takes effect as soon as it is saved."
+  apply_restart: "Restart"
+  apply_restart_help: "Saved now; takes effect when the server restarts."
+  apply_scripts: "Scripts"
+  apply_scripts_help: "Read by docker/run.sh or scripts/build.sh the next time they run."
+  # {running} is the value the server started with.
+  pending_restart: "Saved. The server keeps running with {running} until it restarts."
+  default: "Default: {value}"
+  # Fills the default in; Save writes it. Empty it to leave the button out.
+  reset_button: "Use default"
+  # {name} is the setting, for screen readers.
+  reset_label: "Use the default for {name}"
+  filter_label: "Filter settings"
+  # {count} of {total} settings are showing.
+  filter_count: "{count} of {total}"
+  jump_label: "Jump to a section"
+  empty: "(empty)"
+  list_help: "One per line."
+  locked: "Fixed inside the container. Change it in config/config.yaml on the host."
+  file_only: "A path, so it can only be changed in config/config.yaml."
+  save_button: "Save changes"
+  reload_button: "Reload from file"
+  # Empty this string to stop asking for confirmation.
+  reload_confirm: "Reload and lose the changes you have not saved?"
+  unsaved: "{count} unsaved"
+  saved: "Saved."
+  saved_restart: "Saved. Some changes take effect when the server restarts."
+  changed_on_disk: "config.yaml was changed while you were editing (by hand, or in another tab), so nothing was saved. Reload from file to see it."
+  # {error} says what is wrong with it.
+  invalid_file: "config.yaml does not validate, so the server is running on the last good version. {error}"
+  read_only: "The server cannot write config.yaml, so it can only be changed by editing the file by hand."
+  stale: "config.yaml was replaced on the host since this container started. Restart the container to see and change the new version."
+
+# The page a browser gets when a page load fails (404, 429, 500 and so on).
+# The server renders this, so it works when the app itself cannot load. "other"
+# is any status without its own pair. {reference} is what finds a 5xx in the
+# Logs screen's search.
+error_page:
+  home: "Back to the app"
+  not_found_title: "Page not found"
+  not_found_message: "This page does not exist, or the link is out of date."
+  method_not_allowed_title: "That is not possible here"
+  method_not_allowed_message: "This address does not work that way."
+  rate_limited_title: "Too many requests"
+  rate_limited_message: "Please wait a minute, then try again."
+  server_error_title: "Something went wrong"
+  server_error_message: "This is a problem on the server, not with anything you did. Please try again."
+  maintenance_title: "Down for maintenance"
+  maintenance_message: "This app is being worked on and will be back shortly. Please try again in a few minutes."
+  other_title: "That did not work"
+  other_message: "The server could not answer this request."
+  reference: "Reference: {reference}"
+
+# The banner across the top of the app while server.maintenance is on.
+maintenance:
+  read_only_banner: "Maintenance mode: this app is read-only for now. Changes are refused."
+  full_banner: "Maintenance mode: only you can reach this app right now. Turn it off in Settings."
+
+errors:
+  generic: "Something went wrong. Please try again."
+  # {reference} finds this failure in the Logs screen's search.
+  reference: "Something went wrong on the server. Reference: {reference}"
+  network: "Could not reach the server."
+  # The Logs screen's names for addresses.
+  bad_ip_target: "That is not an address or a range. Try 10.0.0.5 or 10.0.0.0/24."
+  bad_ip_name: "A name is 1 to 80 characters."
+  # And the ones password and two-factor sign-in answer with.
+  two_factor_wrong: "That code is not right."
+  two_factor_locked: "Too many wrong codes. Try again in 15 minutes."
+  two_factor_on: "Two-factor sign-in is already on."
+  two_factor_off: "Two-factor sign-in is not on."
+  challenge_invalid: "That sign-in has expired. Start again."
+  logs_today: "Today's log is still being written, so it cannot be deleted."
+  # The Settings screen's save, by code.
+  settings_changed: "config.yaml was changed while you were editing. Reload from file to see it."
+  settings_stale: "config.yaml was replaced on the host. Restart the container first."
+  settings_read_only: "The server cannot write config.yaml."
+  settings_locked: "That setting cannot be changed from inside the container."
+  settings_file_only: "That setting names a path, so it can only be changed in config.yaml."
+  invalid_settings: "That value is not allowed."
+  unknown_setting: "There is no such setting."
+  settings_hand_edit: "config.yaml is written in a way this screen cannot change. Edit the file by hand."
+
+webdav:
+  heading: "WebDAV"
+  description: "Where Zotero syncs your attachment files. Only you can see them."
+  connect_heading: "Connect Zotero"
+  claim_description: "Choose a WebDAV name first. It becomes the folder in your address and the user name WebDAV clients sign in with."
+  name_label: "WebDAV name"
+  name_help: "2-32 lowercase letters, digits and -, starting with a letter or digit."
+  claim_button: "Choose name"
+  claimed: "Your WebDAV folder is ready."
+  connect_description: "In Zotero: Settings, Sync, File Syncing. Choose WebDAV and copy these in."
+  account_off: "An admin has switched WebDAV off for your account. Clients cannot sign in until it is back on."
+  url_label: "URL:"
+  scheme_label: "Protocol"
+  username_label: "Username:"
+  password_label: "Password:"
+  password_placeholder: "Shuffle for an app password"
+  make_password_button: "New app password"
+  password_default_name: "Zotero, {date}"
+  password_shown_once: "Copy it into Zotero now: it is shown only this once."
+  random_name_button: "Random username"
+  name_locked: "An admin has set your username, so it cannot be changed here."
+  random_name_confirm: "Switch to a random username? Zotero needs the new URL and username, and the old ones stop working at once."
+  rename_confirm: "Change your username? Zotero needs the new URL and username, and the old ones stop working at once."
+  usage_heading: "Space"
+  usage_none: "Choose a WebDAV name to get your folder."
+  usage_of: "{used} of {quota} used."
+  usage_unlimited: "{used} used. No limit set."
+  encrypted_note: "Files are encrypted as they are written to the server's disk."
+  plain_note: "Files are kept on the server's disk as they were uploaded, not encrypted."
+  passwords_heading: "App passwords"
+  passwords_description: "One per computer running Zotero, so each can be stopped on its own."
+  passwords_empty: "No app passwords yet."
+  password_revoke_confirm: "Revoke this app password? Whatever uses it stops syncing at once, for good."
+  table_name: "Name"
+  table_path: "Path"
+  table_size: "Size"
+  table_modified: "Modified"
+  table_deleted: "Deleted"
+  download_button: "Download"
+  zotero_delete_confirm: "Move the whole zotero folder to the trash? Zotero will upload every attachment again on its next sync."
+  trash_heading: "Trash"
+  trash_description: "What you delete on the Files page stays here for a while before it is removed for good, and counts against your space until then."
+  trash_empty: "The trash is empty."
+  restore_button: "Put back"
+  restored: "Put back."
+  empty_button: "Delete for good"
+  empty_confirm: "Delete this for good? It cannot be put back."
+
+files:
+  heading: "Files"
+  description: "Your folder as Zotero left it: each attachment is a .zip and a .prop in zotero/."
+  none_selected: "Pick a file or folder."
+  reload_button: "Reload"
+  root: "Your folder"
+  empty: "This folder is empty."
+
+library:
+  heading: "Library"
+  description: "Titles, authors and DOIs for your attachments, sent by a program such as PRMA."
+  search_label: "Search by title, author, year or DOI"
+  top_only_label: "Hide attachments and notes"
+  empty: "Nothing here yet."
+  table_title: "Title"
+  table_creators: "Authors"
+  table_year: "Year"
+  table_type: "Type"
+  table_modified: "Modified"
+  table_file: "File"
+  no_file: "none"
+  file_button: "Open"
+
+webdav_admin:
+  heading: "WebDAV folders"
+  description: "Everyone with a WebDAV folder: whether they may use it, whether they may change their name, their space and how much they use. What is in a folder is theirs alone, so it is not shown here."
+  search_label: "Search by name or WebDAV name"
+  empty: "No one has chosen a WebDAV name yet."
+  table_account: "Account"
+  table_name: "WebDAV name"
+  table_access: "Access"
+  table_used: "Used"
+  table_quota: "Space"
+  access_on: "on"
+  access_off: "off"
+  no_limit: "no limit"
+  default_quota: "(default)"
+  turn_off: "Switch off"
+  turn_on: "Switch on"
+  lock_name: "Lock name"
+  unlock_name: "Unlock name"
+  name_locked: "They cannot change this name"
+  quota_button: "Space"
+  quota_heading: "Space for {name}"
+  quota_label: "Space in GB"
+  quota_help: "0 means no limit. Leave it blank to follow the server's default."
