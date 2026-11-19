@@ -98,15 +98,15 @@ func ( server *Server ) Reconcile() ( note string , err error ) {
 	leftovers , trashed , gone := 0 , 0 , 0
 	var problems []error
 	for _ , account := range accounts {
-		root := server.Root( account.UserID )
+		root := server.Root( account.ID )
 		leftovers += removeLeftovers( root )
-		trashed += server.purgeTrash( account.UserID , time.Duration( cfg.WebDAV.TrashDays ) * 24 * time.Hour )
-		used := treeSize( root ) + treeSize( server.TrashRoot( account.UserID ) )
-		if set_err := server.setUsage( account.UserID , used ); set_err != nil && errors.Is( set_err , db.ErrNotFound ) == false {
+		trashed += server.purgeTrash( account.ID , time.Duration( cfg.WebDAV.TrashDays ) * 24 * time.Hour )
+		used := treeSize( root ) + treeSize( server.TrashRoot( account.ID ) )
+		if set_err := server.setUsage( account.ID , used ); set_err != nil && errors.Is( set_err , db.ErrNotFound ) == false {
 			problems = append( problems , set_err )
 		}
-		if index_err := server.reindex( account.UserID ); index_err != nil {
-			problems = append( problems , fmt.Errorf( "account %d: %w" , account.UserID , index_err ) )
+		if index_err := server.reindex( account.ID ); index_err != nil {
+			problems = append( problems , fmt.Errorf( "account %d: %w" , account.ID , index_err ) )
 		}
 	}
 	for _ , parent := range []string{ cfg.WebDAV.Dir , cfg.WebDAV.TrashDir } {
@@ -132,14 +132,16 @@ func removeLeftovers( root string ) ( removed int ) {
 	return
 }
 
-// removeGone removes the folders under parent named for an account id that
-// has no user any more.
+// removeGone removes the folders under parent named for a library id that
+// has neither a library nor a user any more (a deleted library, or a deleted
+// account's).
 func ( server *Server ) removeGone( parent string ) ( removed int , err error ) {
 	entries , err := os.ReadDir( parent )
 	if err != nil { return }
 	for _ , entry := range entries {
 		user_id , parse_err := strconv.ParseUint( entry.Name() , 10 , 64 )
 		if parse_err != nil || entry.IsDir() == false { continue }
+		if _ , get_err := models.GetDAVAccount( server.Store , user_id ); errors.Is( get_err , db.ErrNotFound ) == false { continue }
 		if _ , get_err := models.GetUser( server.Store , user_id ); errors.Is( get_err , db.ErrNotFound ) == false { continue }
 		if remove_err := os.RemoveAll( filepath.Join( parent , entry.Name() ) ); remove_err != nil {
 			err = errors.Join( err , remove_err )

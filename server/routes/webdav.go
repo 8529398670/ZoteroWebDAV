@@ -31,6 +31,56 @@ import (
 // session only (SESSION_ONLY), like API keys: a leaked key cannot mint itself
 // a way into WebDAV.
 
+// ---------------------------------------------------------------------------
+// libraries
+// ---------------------------------------------------------------------------
+
+// libraryQuery names one of the caller's WebDAV libraries. Every WebDAV and
+// library route takes it; absent means the primary, so a client that knows
+// nothing of libraries keeps working on the one it always had.
+type libraryQuery struct {
+	Library string `json:"library,omitempty" query:"library" jsonschema:"maxLength=32" jsonschema_description:"Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one." error:"library must be a WebDAV name"`
+}
+
+// libraryOf resolves a library name to its id, for the caller. name comes
+// from the request (a bulk item carries its own); an empty one falls back to
+// the URL's library parameter, then to the primary, whose id is the user's.
+// A library that is not the caller's is 404, the same as one that does not
+// exist.
+func ( handlers *Handlers ) libraryOf( c fiber.Ctx , name string ) ( library_id uint64 , err error ) {
+	account , err := handlers.libraryAccount( c , name )
+	if err != nil { return }
+	library_id = security.UserFrom( c ).ID
+	if account != nil { library_id = account.ID }
+	return
+}
+
+// libraryAccount is libraryOf's library itself: nil (and no error) for a
+// primary that has no WebDAV name yet.
+func ( handlers *Handlers ) libraryAccount( c fiber.Ctx , name string ) ( account *models.DAVAccount , err error ) {
+	user := security.UserFrom( c )
+	name = strings.ToLower( strings.TrimSpace( name ) )
+	if name == "" { name = strings.ToLower( strings.TrimSpace( c.Query( "library" ) ) ) }
+	var get_err error
+	if name == "" {
+		account , get_err = models.GetDAVAccount( handlers.Store , user.ID )
+		if errors.Is( get_err , db.ErrNotFound ) {
+			account , get_err = nil , nil
+		}
+	} else {
+		account , get_err = models.DAVAccountByName( handlers.Store , name )
+		if get_err == nil && account.UserID != user.ID {
+			account , get_err = nil , db.ErrNotFound
+		}
+		if errors.Is( get_err , db.ErrNotFound ) {
+			err = refuse( fiber.StatusNotFound , "you have no WebDAV library called " + name )
+			return
+		}
+	}
+	err = get_err
+	return
+}
+
 // RequireWebDAV hides every WebDAV route while webdav.enabled is off.
 func ( handlers *Handlers ) RequireWebDAV( c fiber.Ctx ) ( err error ) {
 	if handlers.cfg().WebDAV.Enabled == false || handlers.DAV == nil {
@@ -42,7 +92,10 @@ func ( handlers *Handlers ) RequireWebDAV( c fiber.Ctx ) ( err error ) {
 }
 
 type webdavAccountRow struct {
+	ID         uint64 `json:"id" jsonschema_description:"The library's id. An account's first library has the account's own id."`
 	Name       string `json:"name"`
+	Label      string `json:"label,omitempty" jsonschema_description:"The owner's note on what it is for."`
+	Primary    bool   `json:"primary" jsonschema_description:"true for the account's first library, the one used when no library is named. It cannot be deleted."`
 	Enabled    bool   `json:"enabled"`
 	NameLocked bool   `json:"name_locked" jsonschema_description:"true when an admin has stopped this account changing its WebDAV name."`
 	QuotaBytes int64  `json:"quota_bytes" jsonschema_description:"0 means no limit."`
@@ -62,33 +115,55 @@ type webdavMeReply struct {
 	HostPath      string            `json:"host_path,omitempty" jsonschema_description:"url without its scheme: what goes in Zotero's URL box, beside its http/https choice."`
 	EncryptAtRest bool              `json:"encrypt_at_rest"`
 	MaxFileBytes  int64             `json:"max_file_bytes"`
+	Libraries     []webdavLibraryRow `json:"libraries" jsonschema_description:"All your WebDAV libraries, the first one first. account is the one this reply is about."`
+	MaxLibraries  int               `json:"max_libraries" jsonschema_description:"How many libraries you may have; 0 is no limit."`
+}
+
+// webdavLibraryRow is one library with its address.
+type webdavLibraryRow struct {
+	webdavAccountRow
+	URL      string `json:"url" jsonschema_description:"What to give a WebDAV client. Zotero adds /zotero/ itself."`
+	HostPath string `json:"host_path" jsonschema_description:"url without its scheme, for Zotero's URL box."`
+}
+
+func ( webdavLibraryRow ) APIName() ( name string ) { name = "WebDAVLibrary"; return }
+
+func ( handlers *Handlers ) webdavLibraryRow( account *models.DAVAccount ) ( row webdavLibraryRow ) {
+	url := handlers.cfg().WebDAV.BaseURL() + "/" + account.Name
+	row = webdavLibraryRow{ webdavAccountRow: *handlers.webdavAccountRow( account ) , URL: url , HostPath: strings.TrimPrefix( strings.TrimPrefix( url , "https://" ) , "http://" ) }
+	return
 }
 
 func ( handlers *Handlers ) webdavAccountRow( account *models.DAVAccount ) ( row *webdavAccountRow ) {
 	cfg := handlers.cfg()
 	row = &webdavAccountRow{
+		ID:         account.ID,
 		Name:       account.Name,
+		Label:      account.Label,
+		Primary:    account.Primary(),
 		Enabled:    account.Enabled,
 		NameLocked: account.NameLocked,
 		QuotaBytes: account.QuotaFor( cfg.WebDAV.DefaultQuotaBytes ),
 		QuotaSet:   account.QuotaBytes != nil,
-		UsedBytes:  handlers.DAV.Usage( account.UserID ),
+		UsedBytes:  handlers.DAV.Usage( account.ID ),
 	}
 	return
 }
 
-func ( handlers *Handlers ) webdavMe( user *models.User ) ( reply *webdavMeReply , err error ) {
+// webdavMe is the WebDAV screen's state, about account (nil: the primary,
+// which has no name yet).
+func ( handlers *Handlers ) webdavMe( user *models.User , account *models.DAVAccount ) ( reply *webdavMeReply , err error ) {
 	cfg := handlers.cfg()
 	base := cfg.WebDAV.BaseURL()
-	reply = &webdavMeReply{ BaseURL: base , EncryptAtRest: cfg.WebDAV.EncryptAtRest , MaxFileBytes: cfg.WebDAV.MaxFileBytes , Scheme: "http" }
+	reply = &webdavMeReply{ BaseURL: base , EncryptAtRest: cfg.WebDAV.EncryptAtRest , MaxFileBytes: cfg.WebDAV.MaxFileBytes , Scheme: "http" , MaxLibraries: cfg.WebDAV.MaxLibraries , Libraries: []webdavLibraryRow{} }
 	if strings.HasPrefix( base , "https://" ) { reply.Scheme = "https" }
-	account , get_err := models.GetDAVAccount( handlers.Store , user.ID )
-	switch {
-	case errors.Is( get_err , db.ErrNotFound ):
+	owned , err := models.ListDAVLibrariesForOwner( handlers.Store , user.ID )
+	if err != nil { return }
+	for _ , library := range owned {
+		reply.Libraries = append( reply.Libraries , handlers.webdavLibraryRow( library ) )
+	}
+	if account == nil {
 		reply.SuggestedName = models.SuggestDAVName( user.DisplayName )
-		return
-	case get_err != nil:
-		err = get_err
 		return
 	}
 	reply.Account = handlers.webdavAccountRow( account )
@@ -102,20 +177,25 @@ func ( handlers *Handlers ) webdavMe( user *models.User ) ( reply *webdavMeReply
 // and how full it is.
 //
 // @route("GET /api/webdav", summary="Your WebDAV folder",
-//     tag="WebDAV", feature="webdav",
-//     description="Your WebDAV name, the address to give Zotero or another client, and how full your folder "
-//         "is. account is null until you choose a name (POST /api/webdav/name).",
+//     tag="WebDAV", feature="webdav", errors=(404,),
+//     description="One of your WebDAV libraries (library, default your first): its name, the address to give "
+//         "Zotero or another client, and how full it is, plus the list of all of them. account is null "
+//         "until you choose a name (POST /api/webdav/name).",
 // )
-func ( handlers *Handlers ) getWebDAV( c fiber.Ctx , in *apidoc.None ) ( reply *webdavMeReply , err error ) {
-	reply , err = handlers.webdavMe( security.UserFrom( c ) )
+func ( handlers *Handlers ) getWebDAV( c fiber.Ctx , in *libraryQuery ) ( reply *webdavMeReply , err error ) {
+	account , err := handlers.libraryAccount( c , in.Library )
+	if err != nil { return }
+	reply , err = handlers.webdavMe( security.UserFrom( c ) , account )
 	return
 }
 
 type webdavNameRequest struct {
+	libraryQuery
 	Name string `json:"name" jsonschema:"minLength=2,maxLength=32" jsonschema_description:"2-32 characters: lowercase letters, digits and -, starting with a letter or digit." error:"name must be 2-32 lowercase letters, digits and -"`
 }
 
-// setWebDAVName chooses your WebDAV name, or changes it. Your files stay
+// setWebDAVName chooses your WebDAV name, or changes it: the primary
+// library's, or the named library's. Your files stay
 // where they are: they are kept by account, not by name. The old address
 // stops working at once.
 //
@@ -128,7 +208,9 @@ type webdavNameRequest struct {
 func ( handlers *Handlers ) setWebDAVName( c fiber.Ctx , in *webdavNameRequest ) ( reply *webdavMeReply , err error ) {
 	user := security.UserFrom( c )
 	name := strings.ToLower( strings.TrimSpace( in.Name ) )
-	_ , created , claim_err := models.ClaimDAVName( handlers.Store , user.ID , name , handlers.cfg().WebDAV.EnabledByDefault , false )
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	account , created , claim_err := models.RenameDAVLibrary( handlers.Store , user.ID , library_id , name , handlers.cfg().WebDAV.EnabledByDefault , false )
 	switch {
 	case errors.Is( claim_err , models.ErrDAVNameLocked ):
 		err = refuse( fiber.StatusForbidden , claim_err.Error() )
@@ -143,14 +225,128 @@ func ( handlers *Handlers ) setWebDAVName( c fiber.Ctx , in *webdavNameRequest )
 		err = claim_err
 		return
 	}
-	if root_err := handlers.DAV.EnsureRoot( user.ID ); root_err != nil {
+	if root_err := handlers.DAV.EnsureRoot( account.ID ); root_err != nil {
 		err = serverError( c , root_err )
 		return
 	}
 	message := "webdav name changed"
 	if created { message = "webdav name chosen" }
-	handlers.audit( c , logs.KindAdmin , message , fiber.Map{ "name": name } )
-	reply , err = handlers.webdavMe( user )
+	handlers.audit( c , logs.KindAdmin , message , fiber.Map{ "name": name , "library_id": account.ID } )
+	reply , err = handlers.webdavMe( user , account )
+	return
+}
+
+type createLibraryRequest struct {
+	Name  string `json:"name" jsonschema:"minLength=2,maxLength=32" jsonschema_description:"Its WebDAV name: 2-32 lowercase letters, digits and -. It is also the user name its app passwords go with." error:"name must be 2-32 lowercase letters, digits and -"`
+	Label string `json:"label,omitempty" jsonschema:"maxLength=60" jsonschema_description:"What it is for: Work, Personal." error:"label must be at most 60 characters"`
+}
+
+// davLibraryRefusal answers each way making or changing a library can fail.
+func davLibraryRefusal( cause error ) ( err error ) {
+	switch {
+	case errors.Is( cause , db.ErrNotFound ):
+		err = refuse( fiber.StatusNotFound , "no such WebDAV library" )
+	case errors.Is( cause , models.ErrDAVNameTaken ) , errors.Is( cause , models.ErrDAVLibraryLimit ):
+		err = refuse( fiber.StatusConflict , cause.Error() )
+	case errors.Is( cause , models.ErrDAVPrimary ) , errors.Is( cause , models.ErrDAVNameLocked ):
+		err = refuse( fiber.StatusForbidden , cause.Error() )
+	case errors.Is( cause , models.ErrDAVNameInvalid ) , errors.Is( cause , models.ErrDAVNameReserved ) , errors.Is( cause , models.ErrDAVLabel ):
+		err = refuse( fiber.StatusBadRequest , cause.Error() )
+	default:
+		err = cause
+	}
+	return
+}
+
+type webdavLibrariesReply struct {
+	Libraries    []webdavLibraryRow `json:"libraries"`
+	MaxLibraries int                `json:"max_libraries" jsonschema_description:"How many you may have; 0 is no limit."`
+}
+
+// listWebDAVLibraries is your WebDAV libraries.
+//
+// @route("GET /api/webdav/libraries", summary="Your WebDAV libraries",
+//     tag="WebDAV", feature="webdav",
+//     description="Each library is its own WebDAV folder, with its own name, app passwords, quota and "
+//         "metadata library (say one per Zotero profile). Every WebDAV and library route takes "
+//         "library=<name> to pick one; without it they use the first.",
+// )
+func ( handlers *Handlers ) listWebDAVLibraries( c fiber.Ctx , in *apidoc.None ) ( reply *webdavLibrariesReply , err error ) {
+	owned , err := models.ListDAVLibrariesForOwner( handlers.Store , security.UserFrom( c ).ID )
+	if err != nil { return }
+	reply = &webdavLibrariesReply{ Libraries: []webdavLibraryRow{} , MaxLibraries: handlers.cfg().WebDAV.MaxLibraries }
+	for _ , library := range owned {
+		reply.Libraries = append( reply.Libraries , handlers.webdavLibraryRow( library ) )
+	}
+	return
+}
+
+// createWebDAVLibrary makes another library. The first one you make is your
+// primary, the same as choosing your WebDAV name.
+//
+// @route("POST /api/webdav/libraries", summary="Make a WebDAV library",
+//     tag="WebDAV", feature="webdav", status=201, errors=(409,),
+//     description="A new, empty WebDAV folder with its own name, app passwords and quota. 409 when the "
+//         "name is taken or you already have webdav.max_libraries_per_user.",
+// )
+func ( handlers *Handlers ) createWebDAVLibrary( c fiber.Ctx , in *createLibraryRequest ) ( reply *webdavLibraryRow , err error ) {
+	cfg := handlers.cfg()
+	user := security.UserFrom( c )
+	account , create_err := models.CreateDAVLibrary( handlers.Store , user.ID , strings.ToLower( strings.TrimSpace( in.Name ) ) , in.Label , cfg.WebDAV.EnabledByDefault , cfg.WebDAV.MaxLibraries )
+	if create_err != nil {
+		err = davLibraryRefusal( create_err )
+		return
+	}
+	if root_err := handlers.DAV.EnsureRoot( account.ID ); root_err != nil {
+		err = serverError( c , root_err )
+		return
+	}
+	row := handlers.webdavLibraryRow( account )
+	reply = &row
+	handlers.audit( c , logs.KindAdmin , "webdav library created" , fiber.Map{ "library_id": account.ID , "name": account.Name } )
+	return
+}
+
+type libraryIDPath struct {
+	LibraryID uint64 `json:"library_id" path:"library_id" jsonschema:"minimum=1" jsonschema_description:"The library's id, from GET /api/webdav/libraries." error:"invalid library id"`
+}
+
+type labelLibraryRequest struct {
+	libraryIDPath
+	Label string `json:"label" jsonschema:"maxLength=60" jsonschema_description:"What it is for. Empty clears it." error:"label must be at most 60 characters"`
+}
+
+// labelWebDAVLibrary changes one of your libraries' label.
+//
+// @route("POST /api/webdav/libraries/{library_id}/label", summary="Label a WebDAV library",
+//     tag="WebDAV", feature="webdav", errors=(404,),
+// )
+func ( handlers *Handlers ) labelWebDAVLibrary( c fiber.Ctx , in *labelLibraryRequest ) ( reply *webdavLibraryRow , err error ) {
+	account , label_err := models.SetDAVLabel( handlers.Store , security.UserFrom( c ).ID , in.LibraryID , in.Label )
+	if label_err != nil {
+		err = davLibraryRefusal( label_err )
+		return
+	}
+	row := handlers.webdavLibraryRow( account )
+	reply = &row
+	return
+}
+
+// deleteWebDAVLibrary removes one of your libraries, not the first.
+//
+// @route("POST /api/webdav/libraries/{library_id}/delete", summary="Delete a WebDAV library",
+//     tag="WebDAV", feature="webdav", errors=(403, 404),
+//     description="Its app passwords stop at once, its metadata goes, and its files are removed by the "
+//         "next WebDAV upkeep run. There is no undo. Your first library cannot be deleted (403).",
+// )
+func ( handlers *Handlers ) deleteWebDAVLibrary( c fiber.Ctx , in *libraryIDPath ) ( reply *okReply , err error ) {
+	account , delete_err := models.DeleteDAVLibrary( handlers.Store , security.UserFrom( c ).ID , in.LibraryID )
+	if delete_err != nil {
+		err = davLibraryRefusal( delete_err )
+		return
+	}
+	reply = &okReply{ Ok: true }
+	handlers.audit( c , logs.KindAdmin , "webdav library deleted" , fiber.Map{ "library_id": account.ID , "name": account.Name } )
 	return
 }
 
@@ -161,6 +357,8 @@ func ( handlers *Handlers ) setWebDAVName( c fiber.Ctx , in *webdavNameRequest )
 type davPasswordRow struct {
 	ID         string    `json:"id"`
 	Name       string    `json:"name"`
+	LibraryID  uint64    `json:"library_id" jsonschema_description:"The one WebDAV library it opens."`
+	Library    string    `json:"library,omitempty" jsonschema_description:"That library's WebDAV name: the user name that goes with it."`
 	CreatedAt  time.Time `json:"created_at"`
 	Live       bool      `json:"live"`
 	Revoked    bool      `json:"revoked"`
@@ -172,8 +370,8 @@ type davPasswordRow struct {
 
 func ( davPasswordRow ) APIName() ( name string ) { name = "AppPassword"; return }
 
-func newDAVPasswordRow( password *models.DAVPassword ) ( row davPasswordRow ) {
-	row = davPasswordRow{ ID: password.ID , Name: password.Name , CreatedAt: password.CreatedAt , Live: password.Live() , Revoked: password.Revoked() , Expired: password.Expired() }
+func newDAVPasswordRow( password *models.DAVPassword , names map[uint64]string ) ( row davPasswordRow ) {
+	row = davPasswordRow{ ID: password.ID , Name: password.Name , LibraryID: password.LibraryID , Library: names[ password.LibraryID ] , CreatedAt: password.CreatedAt , Live: password.Live() , Revoked: password.Revoked() , Expired: password.Expired() }
 	if password.ExpiresAt != nil { row.ExpiresAt = *password.ExpiresAt }
 	if password.LastUsedAt != nil { row.LastUsedAt = *password.LastUsedAt }
 	if password.RevokedAt != nil { row.RevokedAt = *password.RevokedAt }
@@ -186,20 +384,39 @@ type davPasswordsReply struct {
 }
 
 type listDAVPasswordsRequest struct {
+	libraryQuery
+	All string `json:"all,omitempty" query:"all" jsonschema:"enum=true" jsonschema_description:"true: every library's app passwords, not just library's."`
 	Page
 }
 
-// listDAVPasswords is your app passwords, dead ones included and marked.
+// libraryNames maps the caller's library ids to their WebDAV names.
+func ( handlers *Handlers ) libraryNames( user_id uint64 ) ( names map[uint64]string ) {
+	names = map[uint64]string{}
+	if owned , err := models.ListDAVLibrariesForOwner( handlers.Store , user_id ); err == nil {
+		for _ , library := range owned { names[ library.ID ] = library.Name }
+	}
+	return
+}
+
+// listDAVPasswords is one library's app passwords (library, default your
+// first), or with all=true every library's, dead ones included and marked.
 //
 // @route("GET /api/webdav/passwords", summary="Your app passwords",
-//     tag="WebDAV", access=SESSION_ONLY, feature="webdav",
+//     tag="WebDAV", access=SESSION_ONLY, feature="webdav", errors=(404,),
 // )
 func ( handlers *Handlers ) listDAVPasswords( c fiber.Ctx , in *listDAVPasswordsRequest ) ( reply *davPasswordsReply , err error ) {
-	passwords , err := models.ListDAVPasswordsForUser( handlers.Store , security.UserFrom( c ).ID )
+	user := security.UserFrom( c )
+	only := uint64( 0 )
+	if in.All != "true" {
+		if only , err = handlers.libraryOf( c , in.Library ); err != nil { return }
+	}
+	passwords , err := models.ListDAVPasswordsForUser( handlers.Store , user.ID )
 	if err != nil { return }
+	names := handlers.libraryNames( user.ID )
 	rows := []davPasswordRow{}
 	for _ , password := range passwords {
-		rows = append( rows , newDAVPasswordRow( password ) )
+		if only != 0 && password.LibraryID != only { continue }
+		rows = append( rows , newDAVPasswordRow( password , names ) )
 	}
 	reply = &davPasswordsReply{}
 	reply.Passwords , reply.Paged = cutPage( rows , in.Page )
@@ -207,6 +424,7 @@ func ( handlers *Handlers ) listDAVPasswords( c fiber.Ctx , in *listDAVPasswords
 }
 
 type createDAVPasswordRequest struct {
+	libraryQuery
 	Name          string `json:"name" jsonschema:"minLength=1,maxLength=80" jsonschema_description:"What uses it: Zotero on my laptop, PRMA." error:"name must be 1-80 characters"`
 	ExpiresInDays *int   `json:"expires_in_days,omitempty" jsonschema:"minimum=0,maximum=3650" jsonschema_description:"Absent, null or 0: never expires." error:"expires_in_days must be 0 (never) or up to 3650"`
 }
@@ -214,7 +432,7 @@ type createDAVPasswordRequest struct {
 type newDAVPasswordReply struct {
 	davPasswordRow
 	Credential string `json:"credential" jsonschema_description:"The password. Shown in this response only, and never recoverable."`
-	Username   string `json:"username" jsonschema_description:"Your WebDAV name: the user name that goes with it."`
+	Username   string `json:"username" jsonschema_description:"The library's WebDAV name: the user name that goes with it."`
 }
 
 func ( newDAVPasswordReply ) APIName() ( name string ) { name = "NewAppPassword"; return }
@@ -223,8 +441,9 @@ func ( newDAVPasswordReply ) APIName() ( name string ) { name = "NewAppPassword"
 //
 // @route("POST /api/webdav/passwords", summary="Make an app password",
 //     tag="WebDAV", access=SESSION_ONLY, feature="webdav", status=201, errors=(409,),
-//     description="An app password signs a WebDAV client in to your folder, with your WebDAV name as the "
-//         "user name. It reaches WebDAV only, never this API. It is shown in this response only.",
+//     description="An app password signs a WebDAV client in to one of your libraries (library, default your "
+//         "first), with that library's WebDAV name as the user name. It reaches that library only, and "
+//         "never this API. It is shown in this response only.",
 // )
 func ( handlers *Handlers ) createDAVPassword( c fiber.Ctx , in *createDAVPasswordRequest ) ( reply *newDAVPasswordReply , err error ) {
 	name := strings.TrimSpace( in.Name )
@@ -235,7 +454,9 @@ func ( handlers *Handlers ) createDAVPassword( c fiber.Ctx , in *createDAVPasswo
 	ttl := time.Duration( 0 )
 	if in.ExpiresInDays != nil { ttl = time.Duration( *in.ExpiresInDays ) * 24 * time.Hour }
 	user := security.UserFrom( c )
-	credential , password , issue_err := models.IssueDAVPassword( handlers.Store , user.ID , name , ttl )
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	credential , password , issue_err := models.IssueDAVPassword( handlers.Store , user.ID , library_id , name , ttl )
 	switch {
 	case errors.Is( issue_err , models.ErrDAVPasswordNoFolder ):
 		err = refuse( fiber.StatusConflict , issue_err.Error() )
@@ -250,10 +471,10 @@ func ( handlers *Handlers ) createDAVPassword( c fiber.Ctx , in *createDAVPasswo
 		err = issue_err
 		return
 	}
-	account , err := models.GetDAVAccount( handlers.Store , user.ID )
+	account , err := models.GetDAVAccount( handlers.Store , library_id )
 	if err != nil { return }
-	reply = &newDAVPasswordReply{ davPasswordRow: newDAVPasswordRow( password ) , Credential: credential , Username: account.Name }
-	handlers.audit( c , logs.KindAdmin , "app password created" , fiber.Map{ "password_id": password.ID , "name": password.Name } )
+	reply = &newDAVPasswordReply{ davPasswordRow: newDAVPasswordRow( password , map[uint64]string{ account.ID: account.Name } ) , Credential: credential , Username: account.Name }
+	handlers.audit( c , logs.KindAdmin , "app password created" , fiber.Map{ "password_id": password.ID , "name": password.Name , "library_id": library_id } )
 	return
 }
 
@@ -284,7 +505,7 @@ func ( handlers *Handlers ) changeDAVPassword( c fiber.Ctx , in *davPasswordPath
 		err = change_err
 		return
 	}
-	row := newDAVPasswordRow( password )
+	row := newDAVPasswordRow( password , handlers.libraryNames( user.ID ) )
 	reply = &row
 	handlers.audit( c , logs.KindAdmin , message , fiber.Map{ "password_id": password.ID } )
 	return
@@ -325,18 +546,16 @@ func ( handlers *Handlers ) restoreDAVPassword( c fiber.Ctx , in *davPasswordPat
 // files
 // ---------------------------------------------------------------------------
 
-// davFolder is the caller's account, refusing one with no WebDAV name yet.
-func ( handlers *Handlers ) davFolder( c fiber.Ctx ) ( user_id uint64 , err error ) {
-	user := security.UserFrom( c )
-	if _ , get_err := models.GetDAVAccount( handlers.Store , user.ID ); get_err != nil {
-		if errors.Is( get_err , db.ErrNotFound ) {
-			err = refuse( fiber.StatusConflict , "choose a WebDAV name first" )
-			return
-		}
-		err = get_err
+// davFolder is one of the caller's libraries (name, or the primary),
+// refusing a primary with no WebDAV name yet.
+func ( handlers *Handlers ) davFolder( c fiber.Ctx , name string ) ( library_id uint64 , err error ) {
+	account , err := handlers.libraryAccount( c , name )
+	if err != nil { return }
+	if account == nil {
+		err = refuse( fiber.StatusConflict , "choose a WebDAV name first" )
 		return
 	}
-	user_id = user.ID
+	library_id = account.ID
 	return
 }
 
@@ -360,6 +579,7 @@ func fileRefusal( cause error ) ( err error ) {
 }
 
 type webdavPathQuery struct {
+	libraryQuery
 	Path string `json:"path,omitempty" query:"path" jsonschema:"maxLength=4096" jsonschema_description:"A path in your folder, like /zotero. Default /." error:"path must be at most 4096 characters"`
 }
 
@@ -392,7 +612,7 @@ type webdavFilesReply struct {
 //         "real size.",
 // )
 func ( handlers *Handlers ) listWebDAVFiles( c fiber.Ctx , in *listWebDAVFilesRequest ) ( reply *webdavFilesReply , err error ) {
-	user_id , err := handlers.davFolder( c )
+	user_id , err := handlers.davFolder( c , in.Library )
 	if err != nil { return }
 	entries , list_err := handlers.DAV.List( user_id , in.Path )
 	if list_err != nil {
@@ -409,6 +629,7 @@ func ( handlers *Handlers ) listWebDAVFiles( c fiber.Ctx , in *listWebDAVFilesRe
 }
 
 type downloadWebDAVRequest struct {
+	libraryQuery
 	Path string `json:"path" query:"path" jsonschema:"minLength=1,maxLength=4096" jsonschema_description:"The file, like /papers/smith2020.pdf." error:"path is required"`
 }
 
@@ -420,7 +641,7 @@ type downloadWebDAVRequest struct {
 //     tag="WebDAV", feature="webdav", errors=(404, 409), reply_type="application/octet-stream",
 // )
 func ( handlers *Handlers ) downloadWebDAVFile( c fiber.Ctx , in *downloadWebDAVRequest ) ( err error ) {
-	user_id , err := handlers.davFolder( c )
+	user_id , err := handlers.davFolder( c , in.Library )
 	if err != nil { return }
 	file , info , open_err := handlers.DAV.Open( user_id , in.Path )
 	if open_err != nil {
@@ -467,6 +688,7 @@ func pathEscape( value string ) ( result string ) {
 }
 
 type trashWebDAVRequest struct {
+	libraryQuery
 	Path string `json:"path" jsonschema:"minLength=1,maxLength=4096" jsonschema_description:"The file or folder to move to your trash." error:"path is required"`
 }
 
@@ -491,7 +713,7 @@ func ( webdavTrashRow ) APIName() ( name string ) { name = "WebDAVTrashEntry"; r
 //         "deletes do not go through the trash.",
 // )
 func ( handlers *Handlers ) trashWebDAVFile( c fiber.Ctx , in *trashWebDAVRequest ) ( reply *webdavTrashRow , err error ) {
-	user_id , err := handlers.davFolder( c )
+	user_id , err := handlers.davFolder( c , in.Library )
 	if err != nil { return }
 	entry , trash_err := handlers.DAV.Trash( user_id , in.Path )
 	if trash_err != nil {
@@ -510,6 +732,7 @@ type webdavTrashReply struct {
 }
 
 type listWebDAVTrashRequest struct {
+	libraryQuery
 	Page
 }
 
@@ -519,7 +742,7 @@ type listWebDAVTrashRequest struct {
 //     tag="WebDAV", feature="webdav", errors=(409,),
 // )
 func ( handlers *Handlers ) listWebDAVTrash( c fiber.Ctx , in *listWebDAVTrashRequest ) ( reply *webdavTrashReply , err error ) {
-	user_id , err := handlers.davFolder( c )
+	user_id , err := handlers.davFolder( c , in.Library )
 	if err != nil { return }
 	entries , err := handlers.DAV.ListTrash( user_id )
 	if err != nil { return }
@@ -533,6 +756,7 @@ func ( handlers *Handlers ) listWebDAVTrash( c fiber.Ctx , in *listWebDAVTrashRe
 }
 
 type webdavTrashPath struct {
+	libraryQuery
 	TrashID string `json:"trash_id" path:"trash_id" jsonschema:"minLength=16,maxLength=64" jsonschema_description:"The trash entry's id, from GET /api/webdav/trash." error:"invalid trash id"`
 }
 
@@ -542,7 +766,7 @@ type webdavTrashPath struct {
 //     tag="WebDAV", feature="webdav", errors=(404, 409),
 // )
 func ( handlers *Handlers ) restoreWebDAVFile( c fiber.Ctx , in *webdavTrashPath ) ( reply *webdavTrashRow , err error ) {
-	user_id , err := handlers.davFolder( c )
+	user_id , err := handlers.davFolder( c , in.Library )
 	if err != nil { return }
 	entry , restore_err := handlers.DAV.Restore( user_id , in.TrashID )
 	if restore_err != nil {
@@ -561,7 +785,7 @@ func ( handlers *Handlers ) restoreWebDAVFile( c fiber.Ctx , in *webdavTrashPath
 //     tag="WebDAV", feature="webdav", errors=(404, 409),
 // )
 func ( handlers *Handlers ) emptyWebDAVTrashEntry( c fiber.Ctx , in *webdavTrashPath ) ( reply *okReply , err error ) {
-	user_id , err := handlers.davFolder( c )
+	user_id , err := handlers.davFolder( c , in.Library )
 	if err != nil { return }
 	if empty_err := handlers.DAV.EmptyTrashEntry( user_id , in.TrashID ); empty_err != nil {
 		err = fileRefusal( empty_err )
@@ -577,7 +801,7 @@ func ( handlers *Handlers ) emptyWebDAVTrashEntry( c fiber.Ctx , in *webdavTrash
 // ---------------------------------------------------------------------------
 
 type adminWebDAVRow struct {
-	UserID      uint64 `json:"user_id"`
+	UserID      uint64 `json:"user_id" jsonschema_description:"The account that owns the library."`
 	DisplayName string `json:"display_name"`
 	webdavAccountRow
 }
@@ -597,13 +821,13 @@ type listAdminWebDAVRequest struct {
 	Direction
 }
 
-// listAdminWebDAV is every account with a WebDAV folder: name, whether it may
-// use it, its quota and how full it is. Never what is in it.
+// listAdminWebDAV is every WebDAV library: its owner, name, whether it may
+// be used, its quota and how full it is. Never what is in it.
 //
 // @route("GET /api/admin/webdav", summary="Everyone's WebDAV folders",
 //     tag="WebDAV", role=ADMIN, feature="webdav",
-//     description="Every account with a WebDAV name: whether it may use WebDAV, its quota and how much it "
-//         "holds. Never what is in the folders.",
+//     description="Every WebDAV library, with the account that owns it: whether it may be used, its quota "
+//         "and how much it holds. Never what is in the folders.",
 // )
 func ( handlers *Handlers ) listAdminWebDAV( c fiber.Ctx , in *listAdminWebDAVRequest ) ( reply *adminWebDAVReply , err error ) {
 	accounts , err := models.ListDAVAccounts( handlers.Store )
@@ -621,19 +845,21 @@ func ( handlers *Handlers ) listAdminWebDAV( c fiber.Ctx , in *listAdminWebDAVRe
 }
 
 type setAdminWebDAVRequest struct {
-	userIDPath
+	libraryIDPath
 	Enabled  *bool `json:"enabled,omitempty" jsonschema_description:"Whether the account may use WebDAV. Absent leaves it."`
 	NameLocked *bool `json:"name_locked,omitempty" jsonschema_description:"true stops the account changing its own WebDAV name. Absent leaves it."`
 	QuotaGB  *int  `json:"quota_gb,omitempty" jsonschema:"minimum=0,maximum=1048576" jsonschema_description:"The account's own quota in GB, 0 for no limit. Absent leaves it." error:"quota_gb must be 0-1048576"`
 	DefaultQuota bool `json:"default_quota,omitempty" jsonschema_description:"true puts the account back on webdav.default_quota_gb."`
 }
 
-// setAdminWebDAV switches an account's WebDAV on or off, locks or unlocks its
-// name, or sets its quota.
-// Who may do it to whom is the same ladder as every account action.
+// setAdminWebDAV switches a library on or off, locks or unlocks its name, or
+// sets its quota. Who may do it to whom is the same ladder as every account
+// action, against the library's owner.
 //
-// @route("POST /api/admin/webdav/{user_id}", summary="Set someone's WebDAV access or quota",
-//     tag="WebDAV", role=ADMIN, feature="webdav", errors=(404,),
+// @route("POST /api/admin/webdav/{library_id}", summary="Set someone's WebDAV access or quota",
+//     tag="WebDAV", role=ADMIN, feature="webdav", errors=(403, 404),
+//     description="library_id is from GET /api/admin/webdav. An account's first library has the account's "
+//         "own id, so the user id still works for it.",
 // )
 func ( handlers *Handlers ) setAdminWebDAV( c fiber.Ctx , in *setAdminWebDAVRequest ) ( reply *adminWebDAVRow , err error ) {
 	var quota *int64
@@ -641,10 +867,10 @@ func ( handlers *Handlers ) setAdminWebDAV( c fiber.Ctx , in *setAdminWebDAVRequ
 		bytes := int64( *in.QuotaGB ) * 1024 * 1024 * 1024
 		quota = &bytes
 	}
-	account , set_err := models.SetDAVAccess( handlers.Store , security.UserFrom( c ).ID , in.UserID , in.Enabled , in.NameLocked , quota , in.DefaultQuota )
+	account , set_err := models.SetDAVAccess( handlers.Store , security.UserFrom( c ).ID , in.LibraryID , in.Enabled , in.NameLocked , quota , in.DefaultQuota )
 	switch {
 	case errors.Is( set_err , db.ErrNotFound ):
-		err = refuse( fiber.StatusNotFound , "that account has no WebDAV folder" )
+		err = refuse( fiber.StatusNotFound , "no such WebDAV library" )
 		return
 	case errors.Is( set_err , models.ErrOwnerProtected ) , errors.Is( set_err , models.ErrOwnerRequired ):
 		err = refuse( fiber.StatusForbidden , set_err.Error() )
@@ -656,6 +882,6 @@ func ( handlers *Handlers ) setAdminWebDAV( c fiber.Ctx , in *setAdminWebDAVRequ
 	names , err := handlers.displayNames()
 	if err != nil { return }
 	reply = &adminWebDAVRow{ UserID: account.UserID , DisplayName: names[ account.UserID ] , webdavAccountRow: *handlers.webdavAccountRow( account ) }
-	handlers.audit( c , logs.KindAdmin , "webdav access changed" , fiber.Map{ "user_id": account.UserID , "enabled": account.Enabled , "name_locked": account.NameLocked , "quota_bytes": reply.QuotaBytes } )
+	handlers.audit( c , logs.KindAdmin , "webdav access changed" , fiber.Map{ "user_id": account.UserID , "library_id": account.ID , "enabled": account.Enabled , "name_locked": account.NameLocked , "quota_bytes": reply.QuotaBytes } )
 	return
 }

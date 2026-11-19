@@ -261,14 +261,15 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.revokeUserSession , handlers.Guard.RequireAdmin )
 	apidoc.Mount( app , "GET" , "/api/admin/webdav" , apidoc.Op{
 		Summary: "Everyone's WebDAV folders",
-		Description: "Every account with a WebDAV name: whether it may use WebDAV, its quota and how much it holds. Never what is in the folders.",
+		Description: "Every WebDAV library, with the account that owns it: whether it may be used, its quota and how much it holds. Never what is in the folders.",
 		Tag: "WebDAV",
 		Role: apidoc.Admin,
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 403 , 404 },
 	} , handlers.listAdminWebDAV , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireAdmin )
-	apidoc.Mount( app , "POST" , "/api/admin/webdav/{user_id}" , apidoc.Op{
+	apidoc.Mount( app , "POST" , "/api/admin/webdav/{library_id}" , apidoc.Op{
 		Summary: "Set someone's WebDAV access or quota",
+		Description: "library_id is from GET /api/admin/webdav. An account's first library has the account's own id, so the user id still works for it.",
 		Tag: "WebDAV",
 		Role: apidoc.Admin,
 		Feature: "webdav",
@@ -563,7 +564,7 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Summary: "How the import is going",
 		Tag: "Library",
 		Feature: "webdav",
-		Errors: []int{ 401 , 404 },
+		Errors: []int{ 400 , 401 , 404 },
 	} , handlers.importStatusRoute , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "GET" , "/api/library/items" , apidoc.Op{
 		Summary: "Your items",
@@ -744,10 +745,10 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.listTeam , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "GET" , "/api/webdav" , apidoc.Op{
 		Summary: "Your WebDAV folder",
-		Description: "Your WebDAV name, the address to give Zotero or another client, and how full your folder is. account is null until you choose a name (POST /api/webdav/name).",
+		Description: "One of your WebDAV libraries (library, default your first): its name, the address to give Zotero or another client, and how full it is, plus the list of all of them. account is null until you choose a name (POST /api/webdav/name).",
 		Tag: "WebDAV",
 		Feature: "webdav",
-		Errors: []int{ 401 , 404 },
+		Errors: []int{ 400 , 401 , 404 },
 	} , handlers.getWebDAV , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.MountStream( app , "GET" , "/api/webdav/download" , apidoc.Op{
 		Summary: "Download a file",
@@ -763,6 +764,34 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 404 , 409 },
 	} , handlers.listWebDAVFiles , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "GET" , "/api/webdav/libraries" , apidoc.Op{
+		Summary: "Your WebDAV libraries",
+		Description: "Each library is its own WebDAV folder, with its own name, app passwords, quota and metadata library (say one per Zotero profile). Every WebDAV and library route takes library=<name> to pick one; without it they use the first.",
+		Tag: "WebDAV",
+		Feature: "webdav",
+		Errors: []int{ 401 , 404 },
+	} , handlers.listWebDAVLibraries , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/webdav/libraries" , apidoc.Op{
+		Summary: "Make a WebDAV library",
+		Description: "A new, empty WebDAV folder with its own name, app passwords and quota. 409 when the name is taken or you already have webdav.max_libraries_per_user.",
+		Tag: "WebDAV",
+		Feature: "webdav",
+		Status: 201,
+		Errors: []int{ 400 , 401 , 403 , 404 , 409 },
+	} , handlers.createWebDAVLibrary , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/webdav/libraries/{library_id}/delete" , apidoc.Op{
+		Summary: "Delete a WebDAV library",
+		Description: "Its app passwords stop at once, its metadata goes, and its files are removed by the next WebDAV upkeep run. There is no undo. Your first library cannot be deleted (403).",
+		Tag: "WebDAV",
+		Feature: "webdav",
+		Errors: []int{ 400 , 401 , 403 , 404 },
+	} , handlers.deleteWebDAVLibrary , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/webdav/libraries/{library_id}/label" , apidoc.Op{
+		Summary: "Label a WebDAV library",
+		Tag: "WebDAV",
+		Feature: "webdav",
+		Errors: []int{ 400 , 401 , 403 , 404 },
+	} , handlers.labelWebDAVLibrary , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/webdav/name" , apidoc.Op{
 		Summary: "Choose or change your WebDAV name",
 		Description: "The name is the folder in your WebDAV address. Changing it moves no file, and the old address stops working at once, so every client needs the new one. 403 when an admin has locked your name (account.name_locked).",
@@ -779,7 +808,7 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.listDAVPasswords , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin , handlers.Guard.RequireSession )
 	apidoc.Mount( app , "POST" , "/api/webdav/passwords" , apidoc.Op{
 		Summary: "Make an app password",
-		Description: "An app password signs a WebDAV client in to your folder, with your WebDAV name as the user name. It reaches WebDAV only, never this API. It is shown in this response only.",
+		Description: "An app password signs a WebDAV client in to one of your libraries (library, default your first), with that library's WebDAV name as the user name. It reaches that library only, and never this API. It is shown in this response only.",
 		Tag: "WebDAV",
 		Access: apidoc.SessionOnly,
 		Feature: "webdav",

@@ -11,7 +11,6 @@ import (
 
 	db "zoterowebdav/server/db"
 	models "zoterowebdav/server/models"
-	security "zoterowebdav/server/security"
 )
 
 // The library API: the metadata that goes with the files in your WebDAV
@@ -25,7 +24,8 @@ import (
 // /api/library/attachments/check says which attachment files the folder
 // already has, so a client copies only what is missing.
 //
-// Everything is the caller's own library. An API key works here, at its
+// Everything is one of the caller's own libraries: the primary, or the one
+// named by the library query parameter (its WebDAV name). An API key works here, at its
 // owner's account: that is how a program uses it.
 
 // ---------------------------------------------------------------------------
@@ -33,10 +33,12 @@ import (
 // ---------------------------------------------------------------------------
 
 type itemKeyPath struct {
+	libraryQuery
 	ItemKey string `json:"item_key" path:"item_key" jsonschema:"minLength=8,maxLength=8" jsonschema_description:"The Zotero item key: 8 of A-Z and 0-9." error:"item_key must be a Zotero key: 8 of A-Z and 0-9"`
 }
 
 type collectionKeyPath struct {
+	libraryQuery
 	CollectionKey string `json:"collection_key" path:"collection_key" jsonschema:"minLength=8,maxLength=8" jsonschema_description:"The Zotero collection key: 8 of A-Z and 0-9." error:"collection_key must be a Zotero key: 8 of A-Z and 0-9"`
 }
 
@@ -111,14 +113,16 @@ func newLibraryRecordReply( record *models.LibraryRecord ) ( reply libraryRecord
 	return
 }
 
-func ( handlers *Handlers ) upsertLibrary( c fiber.Ctx , kind string , key string , body libraryBody ) ( reply *libraryPutReply , err error ) {
+func ( handlers *Handlers ) upsertLibrary( c fiber.Ctx , library string , kind string , key string , body libraryBody ) ( reply *libraryPutReply , err error ) {
+	library_id , err := handlers.libraryOf( c , library )
+	if err != nil { return }
 	if models.ZoteroKeyPattern.MatchString( key ) == false {
 		err = refuse( fiber.StatusBadRequest , models.ErrLibraryKey.Error() )
 		return
 	}
 	data , err := json.Marshal( body.Data )
 	if err != nil { return }
-	results , put_err := models.UpsertLibrary( handlers.Store , security.UserFrom( c ).ID , kind , []models.LibraryInput{ { Key: key , Version: body.Version , Data: data } } )
+	results , put_err := models.UpsertLibrary( handlers.Store , library_id , kind , []models.LibraryInput{ { Key: key , Version: body.Version , Data: data } } )
 	switch {
 	case errors.Is( put_err , models.ErrLibraryKey ) , errors.Is( put_err , models.ErrLibraryData ):
 		err = refuse( fiber.StatusBadRequest , put_err.Error() )
@@ -142,7 +146,7 @@ func ( handlers *Handlers ) upsertLibrary( c fiber.Ctx , kind string , key strin
 //     bulk=True,
 // )
 func ( handlers *Handlers ) putLibraryItem( c fiber.Ctx , in *putItemRequest ) ( reply *libraryPutReply , err error ) {
-	reply , err = handlers.upsertLibrary( c , models.LibraryKindItem , in.ItemKey , in.libraryBody )
+	reply , err = handlers.upsertLibrary( c , in.Library , models.LibraryKindItem , in.ItemKey , in.libraryBody )
 	return
 }
 
@@ -155,12 +159,14 @@ func ( handlers *Handlers ) putLibraryItem( c fiber.Ctx , in *putItemRequest ) (
 //     bulk=True,
 // )
 func ( handlers *Handlers ) putLibraryCollection( c fiber.Ctx , in *putCollectionRequest ) ( reply *libraryPutReply , err error ) {
-	reply , err = handlers.upsertLibrary( c , models.LibraryKindCollection , in.CollectionKey , in.libraryBody )
+	reply , err = handlers.upsertLibrary( c , in.Library , models.LibraryKindCollection , in.CollectionKey , in.libraryBody )
 	return
 }
 
-func ( handlers *Handlers ) deleteLibrary( c fiber.Ctx , kind string , key string ) ( reply *libraryPutReply , err error ) {
-	rev , delete_err := models.DeleteLibraryRecord( handlers.Store , security.UserFrom( c ).ID , kind , key )
+func ( handlers *Handlers ) deleteLibrary( c fiber.Ctx , library string , kind string , key string ) ( reply *libraryPutReply , err error ) {
+	library_id , err := handlers.libraryOf( c , library )
+	if err != nil { return }
+	rev , delete_err := models.DeleteLibraryRecord( handlers.Store , library_id , kind , key )
 	switch {
 	case errors.Is( delete_err , db.ErrNotFound ):
 		err = refuse( fiber.StatusNotFound , "no such " + kind )
@@ -182,7 +188,7 @@ func ( handlers *Handlers ) deleteLibrary( c fiber.Ctx , kind string , key strin
 //     bulk=True,
 // )
 func ( handlers *Handlers ) deleteLibraryItem( c fiber.Ctx , in *itemKeyPath ) ( reply *libraryPutReply , err error ) {
-	reply , err = handlers.deleteLibrary( c , models.LibraryKindItem , in.ItemKey )
+	reply , err = handlers.deleteLibrary( c , in.Library , models.LibraryKindItem , in.ItemKey )
 	return
 }
 
@@ -193,7 +199,7 @@ func ( handlers *Handlers ) deleteLibraryItem( c fiber.Ctx , in *itemKeyPath ) (
 //     bulk=True,
 // )
 func ( handlers *Handlers ) deleteLibraryCollection( c fiber.Ctx , in *collectionKeyPath ) ( reply *libraryPutReply , err error ) {
-	reply , err = handlers.deleteLibrary( c , models.LibraryKindCollection , in.CollectionKey )
+	reply , err = handlers.deleteLibrary( c , in.Library , models.LibraryKindCollection , in.CollectionKey )
 	return
 }
 
@@ -203,7 +209,8 @@ func ( handlers *Handlers ) deleteLibraryCollection( c fiber.Ctx , in *collectio
 //     tag="Library", feature="webdav", errors=(404,),
 // )
 func ( handlers *Handlers ) getLibraryItem( c fiber.Ctx , in *itemKeyPath ) ( reply *libraryRecordReply , err error ) {
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	record , get_err := models.GetLibraryRecord( handlers.Store , user_id , models.LibraryKindItem , in.ItemKey )
 	if errors.Is( get_err , db.ErrNotFound ) || ( get_err == nil && record.Deleted ) {
 		err = refuse( fiber.StatusNotFound , "no such item" )
@@ -223,6 +230,7 @@ func ( handlers *Handlers ) getLibraryItem( c fiber.Ctx , in *itemKeyPath ) ( re
 }
 
 type listLibraryRequest struct {
+	libraryQuery
 	Page
 	Q    string `json:"q,omitempty" query:"q" jsonschema_description:"Keep records whose title, creators, year, DOI or key contains this, in any case."`
 	Top  string `json:"top,omitempty" query:"top" jsonschema:"enum=true" jsonschema_description:"Leave out child items (attachments and notes) and sub-collections."`
@@ -237,7 +245,8 @@ type libraryListReply struct {
 }
 
 func ( handlers *Handlers ) listLibrary( c fiber.Ctx , kind string , in *listLibraryRequest ) ( reply *libraryListReply , err error ) {
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	records , err := models.ListLibrary( handlers.Store , user_id , kind )
 	if err != nil { return }
 	files := map[string]bool{}
@@ -304,6 +313,7 @@ func ( handlers *Handlers ) listLibraryCollections( c fiber.Ctx , in *listLibrar
 }
 
 type libraryChangesRequest struct {
+	libraryQuery
 	Since uint64 `json:"since,omitempty" query:"since" jsonschema:"minimum=0" jsonschema_description:"The rev of the last change you have. 0 for everything." error:"since must be 0 or more"`
 	Limit int    `json:"limit,omitempty" query:"limit" jsonschema:"minimum=1,maximum=1000,default=500" jsonschema_description:"Records to return. Default 500." error:"limit must be 1-1000"`
 }
@@ -324,7 +334,8 @@ type libraryChangesReply struct {
 //         "tombstones kept answers full_resync: true.",
 // )
 func ( handlers *Handlers ) libraryChanges( c fiber.Ctx , in *libraryChangesRequest ) ( reply *libraryChangesReply , err error ) {
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	limit := in.Limit
 	if limit == 0 { limit = 500 }
 	last , purged , err := models.LibraryRev( handlers.Store , user_id )
@@ -371,6 +382,7 @@ type attachmentsReply struct {
 }
 
 type listAttachmentsRequest struct {
+	libraryQuery
 	Page
 }
 
@@ -383,7 +395,9 @@ type listAttachmentsRequest struct {
 //         "there, and the mtime and md5 the .prop gives.",
 // )
 func ( handlers *Handlers ) listAttachments( c fiber.Ctx , in *listAttachmentsRequest ) ( reply *attachmentsReply , err error ) {
-	rows , err := models.ListDAVAttachments( handlers.Store , security.UserFrom( c ).ID )
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	rows , err := models.ListDAVAttachments( handlers.Store , library_id )
 	if err != nil { return }
 	built := make( []attachmentRow , 0 , len( rows ) )
 	for _ , row := range rows {
@@ -400,6 +414,7 @@ type attachmentCheck struct {
 }
 
 type checkAttachmentsRequest struct {
+	libraryQuery
 	Attachments []attachmentCheck `json:"attachments" jsonschema:"minItems=1,maxItems=1000" error:"attachments must list 1-1000 keys"`
 }
 
@@ -417,7 +432,9 @@ type checkAttachmentsReply struct {
 //         "only with both its .zip and its .prop, since Zotero writes the .prop last.",
 // )
 func ( handlers *Handlers ) checkAttachments( c fiber.Ctx , in *checkAttachmentsRequest ) ( reply *checkAttachmentsReply , err error ) {
-	rows , err := models.ListDAVAttachments( handlers.Store , security.UserFrom( c ).ID )
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	rows , err := models.ListDAVAttachments( handlers.Store , library_id )
 	if err != nil { return }
 	by_key := map[string]*models.DAVAttachment{}
 	for _ , row := range rows { by_key[ row.Key ] = row }
@@ -465,7 +482,8 @@ func ( handlers *Handlers ) preferredName( user_id uint64 , key string ) ( name 
 //     tag="Library", feature="webdav", errors=(404,),
 // )
 func ( handlers *Handlers ) listAttachmentFiles( c fiber.Ctx , in *itemKeyPath ) ( reply *attachmentFilesReply , err error ) {
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	attachment , open_err := handlers.DAV.OpenAttachment( user_id , in.ItemKey )
 	if open_err != nil {
 		err = refuse( fiber.StatusNotFound , "no file for that attachment" )
@@ -493,7 +511,8 @@ type attachmentFileRequest struct {
 //         "disk: the main file (the item's filename, the only file, or the largest), or the one name says.",
 // )
 func ( handlers *Handlers ) getAttachmentFile( c fiber.Ctx , in *attachmentFileRequest ) ( err error ) {
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	attachment , open_err := handlers.DAV.OpenAttachment( user_id , in.ItemKey )
 	if open_err != nil {
 		err = refuse( fiber.StatusNotFound , "no file for that attachment" )

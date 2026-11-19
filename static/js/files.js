@@ -108,7 +108,7 @@ const Files = {
     download.classList.toggle( "disabled" , !file );
     download.setAttribute( "aria-disabled" , String( !file ) );
     if ( file ) {
-      download.setAttribute( "href" , "/api/webdav/download" + Api.query( { path: node.key } ) );
+      download.setAttribute( "href" , Api.withLibrary( "/api/webdav/download" + Api.query( { path: node.key } ) ) );
       download.setAttribute( "download" , node.title );
     } else {
       download.removeAttribute( "href" );

@@ -14,6 +14,8 @@ import (
 
 // DAVAccountResponse is an account's WebDAV folder.
 type DAVAccountResponse struct {
+	LibraryID   uint64 `json:"library_id"`
+	Label       string `json:"label,omitempty"`
 	UserID      uint64 `json:"user_id"`
 	DisplayName string `json:"display_name"`
 	Name        string `json:"name"`
@@ -38,12 +40,15 @@ type DAVNameRequest struct {
 }
 
 type DAVPasswordRequest struct {
+	// Library is the WebDAV name of one of the account's libraries; empty
+	// is its first.
+	Library       string `json:"library,omitempty"`
 	Name          string `json:"name"`
 	ExpiresInDays int    `json:"expires_in_days"`
 }
 
 func DAVAccountFrom( account *models.DAVAccount , display_name string ) ( result DAVAccountResponse ) {
-	result = DAVAccountResponse{ UserID: account.UserID , DisplayName: display_name , Name: account.Name , Enabled: account.Enabled , QuotaBytes: account.QuotaBytes , UsedBytes: account.UsedBytes }
+	result = DAVAccountResponse{ LibraryID: account.ID , Label: account.Label , UserID: account.UserID , DisplayName: display_name , Name: account.Name , Enabled: account.Enabled , QuotaBytes: account.QuotaBytes , UsedBytes: account.UsedBytes }
 	return
 }
 
@@ -58,15 +63,42 @@ func SetDAVName( store *db.Store , user_id uint64 , name string , enabled bool )
 	return
 }
 
-// CreateDAVPassword makes an app password for an account.
-func CreateDAVPassword( store *db.Store , user_id uint64 , name string , days int ) ( result DAVPasswordResponse , err error ) {
+// DAVLibraryRequest is the body of POST /v1/webdav/{id}/libraries.
+type DAVLibraryRequest struct {
+	Name  string `json:"name"`
+	Label string `json:"label,omitempty"`
+}
+
+// CreateDAVLibrary makes another WebDAV library for an account, the way the
+// WebDAV screen does. limit is webdav.max_libraries_per_user.
+func CreateDAVLibrary( store *db.Store , user_id uint64 , name string , label string , enabled bool , limit int ) ( result DAVAccountResponse , err error ) {
+	user , err := models.GetUser( store , user_id )
+	if err != nil { return }
+	account , err := models.CreateDAVLibrary( store , user_id , name , label , enabled , limit )
+	if err != nil { return }
+	result = DAVAccountFrom( account , user.DisplayName )
+	return
+}
+
+// CreateDAVPassword makes an app password for one of an account's
+// libraries: library is its WebDAV name, empty for the first.
+func CreateDAVPassword( store *db.Store , user_id uint64 , library string , name string , days int ) ( result DAVPasswordResponse , err error ) {
 	if name == "" || len( name ) > 80 || days < 0 || days > 3650 {
 		err = errors.New( "name must be 1-80 characters and days 0 (never) to 3650" )
 		return
 	}
-	credential , password , err := models.IssueDAVPassword( store , user_id , name , time.Duration( days ) * 24 * time.Hour )
+	library_id := user_id
+	if library != "" {
+		found , find_err := models.DAVAccountByName( store , library )
+		if find_err != nil || found.UserID != user_id {
+			err = db.ErrNotFound
+			return
+		}
+		library_id = found.ID
+	}
+	credential , password , err := models.IssueDAVPassword( store , user_id , library_id , name , time.Duration( days ) * 24 * time.Hour )
 	if err != nil { return }
-	account , err := models.GetDAVAccount( store , user_id )
+	account , err := models.GetDAVAccount( store , library_id )
 	if err != nil { return }
 	result = DAVPasswordResponse{ ID: password.ID , UserID: user_id , Username: account.Name , Name: password.Name , ExpiresAt: password.ExpiresAt , Credential: credential }
 	return
@@ -114,7 +146,21 @@ func ( server *Server ) handleCreateDAVPassword( w http.ResponseWriter , r *http
 	if ok == false { return }
 	body := DAVPasswordRequest{}
 	if decodeBody( w , r , &body ) == false { return }
-	result , err := CreateDAVPassword( server.store , user_id , body.Name , body.ExpiresInDays )
+	result , err := CreateDAVPassword( server.store , user_id , body.Library , body.Name , body.ExpiresInDays )
+	if err != nil {
+		writeError( w , davStatus( err ) , err.Error() )
+		return
+	}
+	writeJSON( w , http.StatusOK , result )
+}
+
+func ( server *Server ) handleCreateDAVLibrary( w http.ResponseWriter , r *http.Request ) {
+	user_id , ok := pathUserID( w , r )
+	if ok == false { return }
+	body := DAVLibraryRequest{}
+	if decodeBody( w , r , &body ) == false { return }
+	cfg := server.cfg()
+	result , err := CreateDAVLibrary( server.store , user_id , body.Name , body.Label , cfg.WebDAV.EnabledByDefault , cfg.WebDAV.MaxLibraries )
 	if err != nil {
 		writeError( w , davStatus( err ) , err.Error() )
 		return
@@ -138,8 +184,13 @@ func ( client *Client ) SetDAVName( user_id uint64 , name string ) ( result DAVA
 	return
 }
 
-func ( client *Client ) CreateDAVPassword( user_id uint64 , name string , days int ) ( result DAVPasswordResponse , err error ) {
-	err = client.do( http.MethodPost , userPath( user_id , "passwords" ) , DAVPasswordRequest{ Name: name , ExpiresInDays: days } , &result )
+func ( client *Client ) CreateDAVPassword( user_id uint64 , library string , name string , days int ) ( result DAVPasswordResponse , err error ) {
+	err = client.do( http.MethodPost , userPath( user_id , "passwords" ) , DAVPasswordRequest{ Library: library , Name: name , ExpiresInDays: days } , &result )
+	return
+}
+
+func ( client *Client ) CreateDAVLibrary( user_id uint64 , name string , label string ) ( result DAVAccountResponse , err error ) {
+	err = client.do( http.MethodPost , userPath( user_id , "libraries" ) , DAVLibraryRequest{ Name: name , Label: label } , &result )
 	return
 }
 

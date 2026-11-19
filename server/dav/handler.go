@@ -117,14 +117,14 @@ func ( server *Server ) ServeHTTP( w http.ResponseWriter , r *http.Request ) {
 		return
 	}
 
-	state := server.state( who.account.UserID )
+	state := server.state( who.account.ID )
 	if server.allow( state , cfg ) == false {
 		headers.Set( "Retry-After" , "1" )
 		http.Error( w , "slow down" , http.StatusTooManyRequests )
 		return
 	}
-	if err := server.ensureRoot( who.account.UserID , state ); err != nil {
-		log.Printf( "[webdav] could not create the folder of account %d: %v" , who.account.UserID , err )
+	if err := server.ensureRoot( who.account.ID , state ); err != nil {
+		log.Printf( "[webdav] could not create the folder of account %d: %v" , who.account.ID , err )
 		http.Error( w , "internal error" , http.StatusInternalServerError )
 		return
 	}
@@ -174,7 +174,7 @@ func ( server *Server ) ServeHTTP( w http.ResponseWriter , r *http.Request ) {
 
 	handler := &webdav.Handler{
 		Prefix:     base,
-		FileSystem: &userFS{ server: server , userID: who.account.UserID , root: server.Root( who.account.UserID ) , state: state },
+		FileSystem: &userFS{ server: server , userID: who.account.ID , root: server.Root( who.account.ID ) , state: state },
 		LockSystem: state.locks,
 	}
 	handler.ServeHTTP( w , r.WithContext( ctx ) )
@@ -195,7 +195,7 @@ func ( server *Server ) admitUpload( r *http.Request , who *signedIn , state *us
 	}
 	quota := who.account.QuotaFor( cfg.WebDAV.DefaultQuotaBytes )
 	if quota > 0 {
-		used := server.usedBytes( who.account.UserID , state )
+		used := server.usedBytes( who.account.ID , state )
 		if used + state.reservedBytes() + stored > quota {
 			status , message = http.StatusInsufficientStorage , "your WebDAV folder is full"
 			return

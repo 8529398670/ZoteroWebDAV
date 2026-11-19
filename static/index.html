@@ -427,6 +427,14 @@
         <section class="view" data-view="webdav" id="webdav-panel" hidden>
           <h2 class="view-title" data-i18n="webdav.heading"></h2>
           <p class="view-description" data-i18n="webdav.description"></p>
+          <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
+            <div class="col-auto">
+              <label class="col-form-label" for="webdav-library-picker"><i class="bi bi-collection me-1" aria-hidden="true"></i><span data-i18n="libraries.picker_label"></span></label>
+            </div>
+            <div class="col col-sm-6 col-lg-4">
+              <select id="webdav-library-picker" class="form-select"></select>
+            </div>
+          </div>
 
           <section class="card">
             <div class="card-body">
@@ -543,6 +551,47 @@
               </div>
             </div>
           </section>
+
+          <!-- Libraries: more WebDAV folders, each with its own name and app
+               passwords. See libraries.js. -->
+          <section class="card" id="libraries-card" hidden>
+            <div class="card-body">
+              <h3 class="card-title" data-i18n="libraries.heading"></h3>
+              <p class="card-text text-body-secondary" data-i18n="libraries.description"></p>
+              <form id="libraries-add-form" class="row g-2 align-items-end mb-3" autocomplete="off">
+                <div class="col-12 col-md-5">
+                  <label for="libraries-add-name" class="form-label" data-i18n="webdav.name_label"></label>
+                  <input id="libraries-add-name" class="form-control font-monospace" name="name" minlength="2" maxlength="32" required
+                         pattern="[a-z0-9][a-z0-9-]{1,31}" autocapitalize="off" spellcheck="false" />
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="libraries-add-label" class="form-label" data-i18n="libraries.table_label"></label>
+                  <input id="libraries-add-label" class="form-control" name="label" maxlength="60"
+                         data-i18n-attr="placeholder:libraries.label_placeholder" />
+                </div>
+                <div class="col-12 col-md-3 d-grid">
+                  <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i><span data-i18n="libraries.add_button"></span></button>
+                </div>
+                <div class="col-12">
+                  <div class="form-text" data-i18n="webdav.name_help"></div>
+                </div>
+              </form>
+              <p id="libraries-full" class="form-text" hidden></p>
+              <div class="table-responsive">
+                <table id="libraries-table" class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col" data-i18n="webdav.name_label"></th>
+                      <th scope="col" data-i18n="libraries.table_label"></th>
+                      <th scope="col" class="d-none d-md-table-cell" data-i18n="webdav.usage_heading"></th>
+                      <th scope="col" data-i18n="api_keys.table_actions"></th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         </section>
 
         <!-- Files: your WebDAV folder as a tree. Zotero's zotero/ folder holds
@@ -551,6 +600,14 @@
         <section class="view view-full" data-view="files" id="files-panel" hidden>
           <h2 class="view-title" data-i18n="files.heading"></h2>
           <p class="view-description" data-i18n="files.description"></p>
+          <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
+            <div class="col-auto">
+              <label class="col-form-label" for="files-library-picker"><i class="bi bi-collection me-1" aria-hidden="true"></i><span data-i18n="libraries.picker_label"></span></label>
+            </div>
+            <div class="col col-sm-6 col-lg-4">
+              <select id="files-library-picker" class="form-select"></select>
+            </div>
+          </div>
           <section class="card">
             <div class="card-body">
               <div class="row g-2 align-items-center mb-2">
@@ -575,6 +632,14 @@
         <section class="view" data-view="trash" id="trash-panel" hidden>
           <h2 class="view-title" data-i18n="webdav.trash_heading"></h2>
           <p class="view-description" data-i18n="webdav.trash_description"></p>
+          <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
+            <div class="col-auto">
+              <label class="col-form-label" for="trash-library-picker"><i class="bi bi-collection me-1" aria-hidden="true"></i><span data-i18n="libraries.picker_label"></span></label>
+            </div>
+            <div class="col col-sm-6 col-lg-4">
+              <select id="trash-library-picker" class="form-select"></select>
+            </div>
+          </div>
           <section class="card">
             <div class="card-body">
               <div class="table-responsive">
@@ -598,6 +663,14 @@
         <section class="view view-full" data-view="library" id="library-panel" hidden>
           <h2 class="view-title" data-i18n="library.heading"></h2>
           <p class="view-description" data-i18n="library.description"></p>
+          <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
+            <div class="col-auto">
+              <label class="col-form-label" for="library-library-picker"><i class="bi bi-collection me-1" aria-hidden="true"></i><span data-i18n="libraries.picker_label"></span></label>
+            </div>
+            <div class="col col-sm-6 col-lg-4">
+              <select id="library-library-picker" class="form-select"></select>
+            </div>
+          </div>
           <section class="card">
             <div class="card-body">
               <div class="row g-2 align-items-center">
@@ -637,6 +710,14 @@
         <section class="view" data-view="library-io" id="library-io-panel" hidden>
           <h2 class="view-title" data-i18n="library_io.heading"></h2>
           <p class="view-description" data-i18n="library_io.description"></p>
+          <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
+            <div class="col-auto">
+              <label class="col-form-label" for="library-io-library-picker"><i class="bi bi-collection me-1" aria-hidden="true"></i><span data-i18n="libraries.picker_label"></span></label>
+            </div>
+            <div class="col col-sm-6 col-lg-4">
+              <select id="library-io-library-picker" class="form-select"></select>
+            </div>
+          </div>
           <div class="row g-3">
             <div class="col-12">
               <section class="card" id="library-io-progress" hidden>
@@ -1211,6 +1292,7 @@
   <script src="/js/pager.js"></script>
   <script src="/js/keys.js"></script>
   <script src="/vendor/wunderbaum/wunderbaum.umd.min.js"></script>
+  <script src="/js/libraries.js"></script>
   <script src="/js/webdav.js"></script>
   <script src="/js/files.js"></script>
   <script src="/js/trash.js"></script>

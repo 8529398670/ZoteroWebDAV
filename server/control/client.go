@@ -150,7 +150,7 @@ func ( client *Client ) send( caller *http.Client , method string , path string 
 
 // Backup asks the server to write a backup, and waits for it.
 func ( client *Client ) Backup( options backup.Options ) ( result backup.Result , err error ) {
-	request := BackupRequest{ Out: options.Out , IncludeKey: options.IncludeKey }
+	request := BackupRequest{ Out: options.Out , IncludeKey: options.IncludeKey , IncludeDAV: options.IncludeDAV }
 	err = client.send( client.long , http.MethodPost , "/v1/backup" , request , &result )
 	return
 }

@@ -23,6 +23,8 @@ import (
 type DAVPassword struct {
 	ID         string     `json:"id"`
 	UserID     uint64     `json:"user_id"`
+	// LibraryID is the one WebDAV library this password opens.
+	LibraryID  uint64     `json:"library_id"`
 	Name       string     `json:"name"`
 	SecretHash string     `json:"secret_hash"`
 	CreatedAt  time.Time  `json:"created_at"`
@@ -59,14 +61,16 @@ func ( password *DAVPassword ) Live() ( result bool ) {
 	return
 }
 
-// IssueDAVPassword returns the credential exactly once. ttl 0 never expires.
-func IssueDAVPassword( store *db.Store , user_id uint64 , name string , ttl time.Duration ) ( credential string , password *DAVPassword , err error ) {
+// IssueDAVPassword returns the credential exactly once. It opens library_id,
+// which has to be one of user_id's. ttl 0 never expires.
+func IssueDAVPassword( store *db.Store , user_id uint64 , library_id uint64 , name string , ttl time.Duration ) ( credential string , password *DAVPassword , err error ) {
 	password_id := encryption.GenerateURLToken( 12 )
 	secret := encryption.GenerateURLToken( 32 )
 	now := time.Now().UTC()
 	password = &DAVPassword{
 		ID:         password_id,
 		UserID:     user_id,
+		LibraryID:  library_id,
 		Name:       strings.TrimSpace( name ),
 		SecretHash: encryption.Sha256Hex( secret ),
 		CreatedAt:  now,
@@ -82,7 +86,9 @@ func IssueDAVPassword( store *db.Store , user_id uint64 , name string , ttl time
 			tx_err = ErrAPIKeyDisabled
 			return
 		}
-		if tx_err = tx.Get( db.BucketDAVAccounts , encryption.Uint64ToBytes( user_id ) , &DAVAccount{} ); errors.Is( tx_err , db.ErrNotFound ) {
+		library := &DAVAccount{}
+		tx_err = tx.Get( db.BucketDAVAccounts , encryption.Uint64ToBytes( library_id ) , library )
+		if errors.Is( tx_err , db.ErrNotFound ) || ( tx_err == nil && library.UserID != user_id ) {
 			tx_err = ErrDAVPasswordNoFolder
 			return
 		}

@@ -170,6 +170,7 @@ type BackupsSection struct {
 	Enabled       bool `yaml:"enabled"`
 	IntervalHours int  `yaml:"interval_hours"`
 	Keep          int  `yaml:"keep"`
+	IncludeDAV    bool `yaml:"include_dav"`
 }
 
 type WebDAVSection struct {
@@ -187,6 +188,7 @@ type WebDAVSection struct {
 	LogReads         bool   `yaml:"log_reads"`
 	TombstoneDays    int    `yaml:"tombstone_days"`
 	TrashDays        int    `yaml:"trash_days"`
+	MaxLibraries     int    `yaml:"max_libraries_per_user"`
 	ImportLocalPaths bool   `yaml:"import_local_paths"`
 	ImportMaxMB      int    `yaml:"import_max_mb"`
 }
@@ -425,6 +427,8 @@ var ErrRotationPending = errors.New( "a key rotation was cut short -- run docker
 // created 0700 the first time something is written there).
 type BackupsConfig struct {
 	Enabled  bool
+	// IncludeDAV puts the WebDAV files (<app_dir>/dav) in scheduled backups.
+	IncludeDAV bool
 	Dir      string
 	Interval time.Duration
 	Keep     int
@@ -453,6 +457,9 @@ type WebDAVConfig struct {
 	LogReads          bool
 	TombstoneDays     int
 	TrashDays         int
+	// MaxLibraries is how many WebDAV libraries one account may own; 0 is
+	// no limit.
+	MaxLibraries int
 	// ImportLocalPaths lets the owner import a Zotero data folder on this
 	// machine. Always off inside the container, which has no such folder.
 	ImportLocalPaths bool
@@ -503,6 +510,7 @@ func webdavConfig( file *File , app_dir string , host string ) ( result WebDAVCo
 		LogReads:          section.LogReads,
 		TombstoneDays:     section.TombstoneDays,
 		TrashDays:         section.TrashDays,
+		MaxLibraries:      section.MaxLibraries,
 		ImportLocalPaths:  section.ImportLocalPaths && InContainer() == false,
 		ImportMaxBytes:    int64( section.ImportMaxMB ) * 1024 * 1024,
 	}
@@ -802,6 +810,7 @@ func ( file *File ) Validate() ( err error ) {
 	check( dav.MinFreeMB >= 0 , "webdav.min_free_mb must be 0 or more" )
 	check( dav.TombstoneDays >= 1 && dav.TombstoneDays <= 3650 , "webdav.tombstone_days must be 1-3650" )
 	check( dav.TrashDays >= 1 && dav.TrashDays <= 3650 , "webdav.trash_days must be 1-3650" )
+	check( dav.MaxLibraries >= 0 && dav.MaxLibraries <= 1000 , "webdav.max_libraries_per_user must be 0-1000" )
 	check( dav.ImportMaxMB >= 1 && dav.ImportMaxMB <= 1024 * 1024 , "webdav.import_max_mb must be 1-1048576, got %d" , dav.ImportMaxMB )
 
 	docker := file.Docker
@@ -1212,6 +1221,7 @@ func build( file *File , path string , paths Paths , secret_key string ) ( cfg *
 			Dir:      filepath.Join( paths.AppDir , BackupsDirName ),
 			Interval: time.Duration( file.Backups.IntervalHours ) * time.Hour,
 			Keep:     file.Backups.Keep,
+			IncludeDAV: file.Backups.IncludeDAV,
 		},
 
 		WebDAV: webdavConfig( file , paths.AppDir , host ),

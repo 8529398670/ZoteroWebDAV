@@ -29,6 +29,7 @@ const WebDAVAdmin = {
         Dom.el( "td" , { text: account.display_name || ( "#" + account.user_id ) } ),
         Dom.el( "td" , { class: "text-nowrap" , children: [
           Dom.el( "code" , { text: account.name } ),
+          account.label ? Dom.el( "span" , { class: "small text-body-secondary ms-1" , text: account.label } ) : null,
           account.name_locked ? Dom.el( "i" , { class: "bi bi-lock ms-1 text-body-secondary" , attrs: { title: I18n.get( "webdav_admin.name_locked" ) , "aria-label": I18n.get( "webdav_admin.name_locked" ) , role: "img" } } ) : null,
         ].filter( Boolean ) } ),
         Dom.el( "td" , { children: [ Dom.badge( I18n.get( account.enabled ? "webdav_admin.access_on" : "webdav_admin.access_off" ) , account.enabled ? "success" : "secondary" ) ] } ),
@@ -52,7 +53,7 @@ const WebDAVAdmin = {
       class: account.enabled ? "btn btn-sm btn-outline-danger" : "btn btn-sm btn-outline-secondary",
       text: I18n.get( account.enabled ? "webdav_admin.turn_off" : "webdav_admin.turn_on" ),
       on: { click: async function () {
-        const set = async ( on ) => { await Api.setAdminWebDAV( account.user_id , { enabled: on } ); await WebDAVAdmin.refresh(); };
+        const set = async ( on ) => { await Api.setAdminWebDAV( account.id , { enabled: on } ); await WebDAVAdmin.refresh(); };
         try {
           await Undo.run( {
             label: I18n.get( "undo.webdav_access" ),
@@ -71,7 +72,7 @@ const WebDAVAdmin = {
       class: "btn btn-sm btn-outline-secondary",
       text: I18n.get( account.name_locked ? "webdav_admin.unlock_name" : "webdav_admin.lock_name" ),
       on: { click: async function () {
-        const set = async ( locked ) => { await Api.setAdminWebDAV( account.user_id , { name_locked: locked } ); await WebDAVAdmin.refresh(); };
+        const set = async ( locked ) => { await Api.setAdminWebDAV( account.id , { name_locked: locked } ); await WebDAVAdmin.refresh(); };
         try {
           await Undo.run( {
             label: I18n.get( "undo.webdav_name_lock" ),
@@ -105,12 +106,12 @@ const WebDAVAdmin = {
             const next = values.quota_gb === null
               ? { default_quota: true }
               : { quota_gb: Number( values.quota_gb ) };
-            await Api.setAdminWebDAV( account.user_id , next );
+            await Api.setAdminWebDAV( account.id , next );
             Undo.record( {
               label: I18n.get( "undo.webdav_quota" ),
               toast: true,
-              undo: async () => { await Api.setAdminWebDAV( account.user_id , previous ); await WebDAVAdmin.refresh(); },
-              redo: async () => { await Api.setAdminWebDAV( account.user_id , next ); await WebDAVAdmin.refresh(); },
+              undo: async () => { await Api.setAdminWebDAV( account.id , previous ); await WebDAVAdmin.refresh(); },
+              redo: async () => { await Api.setAdminWebDAV( account.id , next ); await WebDAVAdmin.refresh(); },
             } );
           },
         } );

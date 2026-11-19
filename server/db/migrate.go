@@ -45,7 +45,34 @@ type Migration struct {
 // migrations is every step this app has ever needed. Add to the end, and never
 // edit, reorder or remove one that has shipped: a database's version is a
 // position in this list. references/architecture.md has a worked example.
-var migrations = []Migration{}
+var migrations = []Migration{
+	{ Name: "webdav libraries" , Up: migrateDAVLibraries },
+}
+
+// migrateDAVLibraries is the step to several WebDAV libraries per account.
+// Each existing one becomes its owner's primary: its id is its user id, so
+// its folder (dav/<id>/) and every key under that id stay where they are.
+// Names point at a library id, and app passwords say which library they open.
+func migrateDAVLibraries( tx *Tx ) ( err error ) {
+	copyField := func( bucket string , from string , to string ) ( copy_err error ) {
+		copy_err = tx.EachRecord( bucket , func( key []byte , record map[string]any ) ( changed bool , visit_err error ) {
+			if _ , present := record[ to ]; present { return }
+			value , present := record[ from ]
+			if present == false { return }
+			record[ to ] = value
+			if bucket == BucketDAVNames {
+				delete( record , from )
+			}
+			changed = true
+			return
+		} )
+		return
+	}
+	if err = copyField( BucketDAVAccounts , "user_id" , "id" ); err != nil { return }
+	if err = copyField( BucketDAVNames , "user_id" , "library_id" ); err != nil { return }
+	err = copyField( BucketDAVPasswords , "user_id" , "library_id" )
+	return
+}
 
 // schemaKey is where the version lives, in a bucket of its own that is not
 // encrypted: the number gives nothing away, and a backup or a rotation has to

@@ -156,6 +156,7 @@ func ( handlers *Handlers ) libraryFormats( c fiber.Ctx , in *apidoc.None ) ( re
 // ---------------------------------------------------------------------------
 
 type importBeginRequest struct {
+	libraryQuery
 	Format string `json:"format" jsonschema:"enum=rdf,enum=ris,enum=csv" error:"format must be rdf, ris or csv"`
 	Mode   string `json:"mode,omitempty" jsonschema:"enum=merge,enum=replace" jsonschema_description:"merge (the default) adds and updates; replace also removes what the import does not have." error:"mode must be merge or replace"`
 	Name   string `json:"name" jsonschema:"minLength=1,maxLength=255" jsonschema_description:"The file's name, for the status." error:"name must be 1-255 characters"`
@@ -195,7 +196,8 @@ func ( handlers *Handlers ) importBegin( c fiber.Ctx , in *importBeginRequest ) 
 		err = refuse( fiber.StatusBadRequest , fmt.Sprintf( "uploads are limited to %d MB here" , limit / 1024 / 1024 ) )
 		return
 	}
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	state := importFor( user_id )
 	if state.busy() {
 		err = refuse( fiber.StatusConflict , "an import is already running" )
@@ -217,6 +219,7 @@ func ( handlers *Handlers ) importBegin( c fiber.Ctx , in *importBeginRequest ) 
 }
 
 type importChunkRequest struct {
+	libraryQuery
 	Offset int64 `json:"offset" query:"offset" jsonschema:"minimum=0" jsonschema_description:"Where this piece starts: the bytes sent so far." error:"offset must be 0 or more"`
 }
 
@@ -237,7 +240,9 @@ func ( handlers *Handlers ) importChunk( c fiber.Ctx , in *importChunkRequest ) 
 		err = refuse( fiber.StatusBadRequest , fmt.Sprintf( "a piece is 1 to %d bytes" , ImportChunkBytes ) )
 		return
 	}
-	state := importFor( security.UserFrom( c ).ID )
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	state := importFor( library_id )
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	upload := state.upload
@@ -268,8 +273,9 @@ func ( handlers *Handlers ) importChunk( c fiber.Ctx , in *importChunkRequest ) 
 //     tag="Library", feature="webdav", errors=(409,), status=202,
 //     description="Starts the import in the background. GET /api/library/import/status says how it goes.",
 // )
-func ( handlers *Handlers ) importFinish( c fiber.Ctx , in *apidoc.None ) ( reply *importStatus , err error ) {
-	user_id := security.UserFrom( c ).ID
+func ( handlers *Handlers ) importFinish( c fiber.Ctx , in *libraryQuery ) ( reply *importStatus , err error ) {
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	state := importFor( user_id )
 	state.mu.Lock()
 	upload := state.upload
@@ -306,6 +312,7 @@ func ( handlers *Handlers ) importFinish( c fiber.Ctx , in *apidoc.None ) ( repl
 }
 
 type importLocalRequest struct {
+	libraryQuery
 	Path  string `json:"path" jsonschema:"minLength=1,maxLength=4096" jsonschema_description:"The Zotero data folder (the one with zotero.sqlite), on the server's machine. ~ is your home folder." error:"path is required"`
 	Mode  string `json:"mode,omitempty" jsonschema:"enum=merge,enum=replace" error:"mode must be merge or replace"`
 	Files bool   `json:"files,omitempty" jsonschema_description:"Also copy each stored attachment's files from storage/ into your WebDAV folder."`
@@ -334,7 +341,8 @@ func ( handlers *Handlers ) importLocal( c fiber.Ctx , in *importLocalRequest ) 
 	}
 	dir , err := handlers.importDir()
 	if err != nil { return }
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	state := importFor( user_id )
 	mode := in.Mode
 	if mode == "" { mode = "merge" }
@@ -362,8 +370,10 @@ func ( handlers *Handlers ) importLocal( c fiber.Ctx , in *importLocalRequest ) 
 // @route("GET /api/library/import/status", summary="How the import is going",
 //     tag="Library", feature="webdav",
 // )
-func ( handlers *Handlers ) importStatusRoute( c fiber.Ctx , in *apidoc.None ) ( reply *importStatus , err error ) {
-	status := importFor( security.UserFrom( c ).ID ).snapshot()
+func ( handlers *Handlers ) importStatusRoute( c fiber.Ctx , in *libraryQuery ) ( reply *importStatus , err error ) {
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	status := importFor( library_id ).snapshot()
 	reply = &status
 	return
 }
@@ -534,6 +544,7 @@ func ( handlers *Handlers ) overlay( user_id uint64 , kind string , key string ,
 // ---------------------------------------------------------------------------
 
 type exportRequest struct {
+	libraryQuery
 	Format     string `json:"format" query:"format" jsonschema:"enum=rdf,enum=ris,enum=csv" error:"format must be rdf, ris or csv"`
 	Files      string `json:"files,omitempty" query:"files" jsonschema:"enum=true,enum=false" jsonschema_description:"true: a zip with each attachment's files under files/, as Zotero's Export Files makes."`
 	Collection string `json:"collection,omitempty" query:"collection" jsonschema:"maxLength=8" jsonschema_description:"Only this collection and the ones inside it." error:"collection must be a Zotero key"`
@@ -553,7 +564,8 @@ func ( handlers *Handlers ) libraryExport( c fiber.Ctx , in *exportRequest ) ( e
 		err = refuse( fiber.StatusBadRequest , zotio.ErrFormat.Error() )
 		return
 	}
-	user_id := security.UserFrom( c ).ID
+	user_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
 	library , err := handlers.exportLibrary( user_id , in.Collection )
 	if err != nil { return }
 	with_files := in.Files == "true"

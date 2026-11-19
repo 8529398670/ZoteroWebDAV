@@ -52,7 +52,9 @@ func ( server *Server ) authenticate( r *http.Request , address string ) ( who *
 	stored , user := models.LoadDAVPassword( server.Store , password )
 	if stored == nil { return }
 	account , err := models.DAVAccountByName( server.Store , strings.ToLower( strings.TrimSpace( name ) ) )
-	if err != nil || account.UserID != stored.UserID { return }
+	// The password has to be for this very library, not just one of the
+	// same owner's.
+	if err != nil || account.ID != stored.LibraryID || account.UserID != stored.UserID { return }
 	outcome = models.AttemptPassed
 	who = &signedIn{ user: user , account: account , passwordID: stored.ID }
 	result = authOK

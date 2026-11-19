@@ -7,6 +7,7 @@
 //	app.db          a consistent copy, taken in one bolt read transaction
 //	config.yaml     this deployment's settings
 //	storage/        application files
+//	dav/            the WebDAV files, every library's, only with IncludeDAV
 //	secret.key      only with -include-key
 //
 // The activity log is left out: it can be far larger than everything else,
@@ -44,6 +45,7 @@ import (
 	db "zoterowebdav/server/db"
 	encryption "zoterowebdav/server/encryption"
 	models "zoterowebdav/server/models"
+	disk "zoterowebdav/server/disk"
 )
 
 const (
@@ -56,6 +58,12 @@ const (
 	configName   = "config.yaml"
 	keyName      = "secret.key"
 	storageName  = "storage"
+	davName      = "dav"
+
+	// davReserved is the WebDAV server's prefix for its own files beside a
+	// person's (uploads still arriving). Those never go in a backup. It is
+	// server/dav's reservedPrefix, repeated so backup does not import dav.
+	davReserved = ".zwd-"
 
 	// Scheduled backups are the only ones Prune may delete, and the prefix
 	// is how it tells: one made by hand stays until someone removes it.
@@ -88,6 +96,10 @@ type Manifest struct {
 	EncryptAtRest  bool      `json:"encrypt_at_rest"`
 	KeyFingerprint string    `json:"key_fingerprint"`
 	ContainsKey    bool      `json:"contains_key"`
+	// IncludesDAV says dav/ is in the backup, and restoring it puts the
+	// WebDAV files back too. DAVBytes is their size when the backup began.
+	IncludesDAV bool  `json:"includes_dav,omitempty"`
+	DAVBytes    int64 `json:"dav_bytes,omitempty"`
 }
 
 // Options says what Create makes. Out is a file to write or an existing
@@ -96,6 +108,9 @@ type Options struct {
 	Out        string
 	IncludeKey bool
 	Auto       bool
+	// IncludeDAV adds the WebDAV files. Scheduled backups take it from
+	// backups.include_dav.
+	IncludeDAV bool
 }
 
 // Result is one finished backup.
@@ -127,6 +142,23 @@ func Create( store *db.Store , cfg *config.Config , options Options ) ( result R
 		return
 	}
 
+	dav_bytes := int64( 0 )
+	if options.IncludeDAV {
+		if dav_bytes , err = folderSize( cfg.WebDAV.Dir ); err != nil {
+			err = fmt.Errorf( "could not measure the WebDAV files: %w" , err )
+			return
+		}
+		// gzip barely shrinks PDFs and zips, so the backup needs about as
+		// much room as the files, and a full disk breaks WebDAV uploads too.
+		if free , _ , space_err := disk.Space( directory ); space_err == nil {
+			needed := uint64( dav_bytes ) + uint64( cfg.WebDAV.MinFreeBytes )
+			if free < needed {
+				err = fmt.Errorf( "not enough free space for a backup with the WebDAV files: they take %d MB, %d MB is free, and webdav.min_free_mb must stay free" , dav_bytes >> 20 , free >> 20 )
+				return
+			}
+		}
+	}
+
 	version , err := store.SchemaVersion()
 	if err != nil { return }
 	manifest := Manifest{
@@ -137,6 +169,8 @@ func Create( store *db.Store , cfg *config.Config , options Options ) ( result R
 		EncryptAtRest:  cfg.EncryptAtRest,
 		KeyFingerprint: encryption.KeyFingerprint( cfg.SecretKey ),
 		ContainsKey:    options.IncludeKey,
+		IncludesDAV:    options.IncludeDAV,
+		DAVBytes:       dav_bytes,
 	}
 
 	partial , err := tempFile( directory , ".backup-*" )
@@ -195,7 +229,10 @@ func writeArchive( destination string , snapshot string , cfg *config.Config , m
 	if manifest.ContainsKey {
 		if err = addBytes( archive , keyName , []byte( cfg.SecretKey + "\n" ) ); err != nil { return }
 	}
-	if err = addStorage( archive , cfg.StorageDir ); err != nil { return }
+	if err = addTree( archive , cfg.StorageDir , storageName , nil ); err != nil { return }
+	if manifest.IncludesDAV {
+		if err = addTree( archive , cfg.WebDAV.Dir , davName , skipReserved ); err != nil { return }
+	}
 
 	if err = archive.Close(); err != nil { return }
 	if err = zipped.Close(); err != nil { return }
@@ -229,11 +266,14 @@ func addFile( archive *tar.Writer , name string , source string ) ( err error ) 
 	return
 }
 
-// addStorage walks the app's files. Only files and folders go in: a symlink
-// could point anywhere, and following one would put something in the backup
-// nobody asked for. Storage is copied as it stands, not at the database's
-// moment, so a file written during a backup may or may not be in it.
-func addStorage( archive *tar.Writer , root string ) ( err error ) {
+// addTree walks a folder into the archive under prefix: storage/ for the
+// app's files, dav/ for the WebDAV files. Only files and folders go in: a
+// symlink could point anywhere, and following one would put something in the
+// backup nobody asked for. A folder is copied as it stands, not at the
+// database's moment, so a file written during a backup may or may not be in
+// it. skip, when set, leaves out entries it says yes to (and everything under
+// a folder it says yes to).
+func addTree( archive *tar.Writer , root string , prefix string , skip func( name string ) bool ) ( err error ) {
 	if _ , stat_err := os.Stat( root ); stat_err != nil { return }
 	err = filepath.WalkDir( root , func( name string , entry fs.DirEntry , walk_err error ) ( visit_err error ) {
 		if walk_err != nil {
@@ -242,9 +282,15 @@ func addStorage( archive *tar.Writer , root string ) ( err error ) {
 			visit_err = walk_err
 			return
 		}
+		if skip != nil && name != root && skip( entry.Name() ) {
+			if entry.IsDir() {
+				visit_err = filepath.SkipDir
+			}
+			return
+		}
 		relative , visit_err := filepath.Rel( root , name )
 		if visit_err != nil { return }
-		member := path.Join( storageName , filepath.ToSlash( relative ) )
+		member := path.Join( prefix , filepath.ToSlash( relative ) )
 		switch {
 		case entry.IsDir():
 			visit_err = archive.WriteHeader( &tar.Header{ Name: member + "/" , Typeflag: tar.TypeDir , Mode: 0o700 , ModTime: now() } )
@@ -252,6 +298,31 @@ func addStorage( archive *tar.Writer , root string ) ( err error ) {
 			visit_err = addFile( archive , member , name )
 			if errors.Is( visit_err , fs.ErrNotExist ) {
 				visit_err = nil
+			}
+		}
+		return
+	} )
+	return
+}
+
+// skipReserved leaves out the WebDAV server's own temporary files.
+func skipReserved( name string ) ( result bool ) {
+	result = strings.HasPrefix( name , davReserved )
+	return
+}
+
+// folderSize adds up the regular files under root; a missing root is 0.
+func folderSize( root string ) ( total int64 , err error ) {
+	if _ , stat_err := os.Stat( root ); stat_err != nil { return }
+	err = filepath.WalkDir( root , func( name string , entry fs.DirEntry , walk_err error ) ( visit_err error ) {
+		if walk_err != nil {
+			if errors.Is( walk_err , fs.ErrNotExist ) { return }
+			visit_err = walk_err
+			return
+		}
+		if entry.Type().IsRegular() && skipReserved( entry.Name() ) == false {
+			if info , info_err := entry.Info(); info_err == nil {
+				total += info.Size()
 			}
 		}
 		return
@@ -268,7 +339,7 @@ func addStorage( archive *tar.Writer , root string ) ( err error ) {
 func RunScheduled( store *db.Store , cfg *config.Config ) ( made *Result , removed int , err error ) {
 	if cfg.Backups.Enabled == false { return }
 	if due( cfg.Backups , now() ) == false { return }
-	result , err := Create( store , cfg , Options{ Auto: true } )
+	result , err := Create( store , cfg , Options{ Auto: true , IncludeDAV: cfg.Backups.IncludeDAV } )
 	if err != nil { return }
 	made = &result
 	removed , err = Prune( cfg.Backups )
@@ -346,6 +417,9 @@ type RestoreResult struct {
 	SavedDatabase string
 	SavedStorage  string
 	SavedConfig   string
+	// SavedDAV is where the WebDAV files the backup replaced went; empty
+	// when the backup had none, and the current ones were left in place.
+	SavedDAV string
 }
 
 // Restore replaces the database and storage with a backup's. It needs the
@@ -450,6 +524,23 @@ func swapIn( cfg *config.Config , staging string , stamp string , result *Restor
 			result.SavedConfig = kept
 		}
 	}
+
+	// The WebDAV files are replaced only by a backup that has them. One
+	// without leaves the current files alone: they still read, because the
+	// WebDAV master key lives in the database and rotation only reseals it.
+	staged_dav := filepath.Join( staging , davName )
+	if result.Manifest.IncludesDAV {
+		if _ , stat_err := os.Stat( cfg.WebDAV.Dir ); stat_err == nil {
+			kept := cfg.WebDAV.Dir + ".before-restore-" + stamp
+			if err = os.Rename( cfg.WebDAV.Dir , kept ); err != nil { return }
+			result.SavedDAV = kept
+		}
+		if _ , stat_err := os.Stat( staged_dav ); stat_err == nil {
+			err = os.Rename( staged_dav , cfg.WebDAV.Dir )
+		} else {
+			err = os.MkdirAll( cfg.WebDAV.Dir , 0o700 )
+		}
+	}
 	return
 }
 
@@ -462,11 +553,11 @@ func memberPath( name string ) ( result string , ok bool ) {
 		return
 	}
 	switch trimmed {
-	case manifestName , databaseName , configName , keyName , storageName:
+	case manifestName , databaseName , configName , keyName , storageName , davName:
 		result , ok = trimmed , true
 		return
 	}
-	if strings.HasPrefix( trimmed , storageName + "/" ) {
+	if strings.HasPrefix( trimmed , storageName + "/" ) || strings.HasPrefix( trimmed , davName + "/" ) {
 		result , ok = trimmed , true
 	}
 	return

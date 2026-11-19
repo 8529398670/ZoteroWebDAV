@@ -58,18 +58,20 @@ Usage:
   create-key      -user-id 3 -name "CI" [-role user] [-days 90]
   revoke-key      -key-id abc123     kill one API key now, keep its record
   delete-key      -key-id abc123     kill one API key now and remove its record
-  backup          [-out path] [-include-key]
+  backup          [-out path] [-include-key] [-include-dav]
                                      one file with the database, config.yaml and
                                      storage, safe while the server runs
   restore         -from path -yes [-key-file path]
                                      put a backup back; the server must be stopped
   rotate-key      -yes               move to a new secret key; the server must be
                                      stopped (in Docker: docker/rotate-key.sh)
-  dav-list                           WebDAV folders: name, access, usage
+  dav-list                           WebDAV libraries: owner, name, access, usage
   dav-set-name    -user-id 3 -name ada
                                      give an account its WebDAV name, or rename it
-  dav-create-password -user-id 3 -name "Zotero laptop" [-days 0]
-                                     an app password for WebDAV clients, shown once
+  dav-create-library -user-id 3 -name ada-work [-label Work]
+                                     another WebDAV library for an account
+  dav-create-password -user-id 3 -name "Zotero laptop" [-library ada-work] [-days 0]
+                                     an app password for one library, shown once
   dav-convert     -to encrypted|plain -yes
                                      rewrite every WebDAV file encrypted or plain;
                                      the server must be stopped
@@ -137,7 +139,8 @@ type backend interface {
 	Backup( options backup.Options ) ( result backup.Result , err error )
 	ListDAV() ( accounts []control.DAVAccountResponse , err error )
 	SetDAVName( user_id uint64 , name string ) ( account control.DAVAccountResponse , err error )
-	CreateDAVPassword( user_id uint64 , name string , days int ) ( password control.DAVPasswordResponse , err error )
+	CreateDAVPassword( user_id uint64 , library string , name string , days int ) ( password control.DAVPasswordResponse , err error )
+	CreateDAVLibrary( user_id uint64 , name string , label string ) ( account control.DAVAccountResponse , err error )
 	AnyAdminExists() ( result bool , err error )
 	Close() ( err error )
 	Route() ( description string )
@@ -244,6 +247,8 @@ func Run( arguments []string ) ( err error ) {
 		err = commandDAVSetName( back , cfg , rest )
 	case "dav-create-password":
 		err = commandDAVCreatePassword( back , cfg , rest )
+	case "dav-create-library":
+		err = commandDAVCreateLibrary( back , cfg , rest )
 	default:
 		Usage()
 		err = fmt.Errorf( "unknown command %q" , command )
@@ -716,6 +721,7 @@ func commandBackup( back backend , arguments []string ) ( err error ) {
 	set := flag.NewFlagSet( "backup" , flag.ExitOnError )
 	out := set.String( "out" , "" , "a file to write, or a folder to write into (default: the backups folder)" )
 	include_key := set.Bool( "include-key" , false , "put secret.key in the backup: anyone with the file can then read everything" )
+	include_dav := set.Bool( "include-dav" , false , "put the WebDAV files (every library's PDFs and zips) in the backup too" )
 	set.Parse( arguments )
 
 	// A running server does the writing, and its working directory is not
@@ -724,7 +730,7 @@ func commandBackup( back backend , arguments []string ) ( err error ) {
 	if target != "" {
 		if target , err = filepath.Abs( target ); err != nil { return }
 	}
-	result , err := back.Backup( backup.Options{ Out: target , IncludeKey: *include_key } )
+	result , err := back.Backup( backup.Options{ Out: target , IncludeKey: *include_key , IncludeDAV: *include_dav } )
 	if err != nil { return }
 
 	fmt.Printf( "Backup written: %s (%d bytes)\n" , result.Path , result.Bytes )
@@ -736,6 +742,11 @@ func commandBackup( back backend , arguments []string ) ( err error ) {
 	}
 	if result.Manifest.EncryptAtRest == false {
 		fmt.Println( "server.encrypt_at_rest is off, so the database in this backup is not encrypted." )
+	}
+	if result.Manifest.IncludesDAV {
+		fmt.Printf( "It includes the WebDAV files (%d MB before compression).\n" , result.Manifest.DAVBytes >> 20 )
+	} else {
+		fmt.Println( "The WebDAV files are NOT in it (pass -include-dav, or set backups.include_dav)." )
 	}
 	return
 }
@@ -768,6 +779,11 @@ func commandRestore( cfg *config.Config , arguments []string ) ( err error ) {
 	}
 	if result.SavedStorage != "" {
 		fmt.Printf( "The storage it replaced:  %s\n" , result.SavedStorage )
+	}
+	if result.SavedDAV != "" {
+		fmt.Printf( "The WebDAV files it replaced: %s\n" , result.SavedDAV )
+	} else if result.Manifest.IncludesDAV == false {
+		fmt.Println( "The WebDAV files were not in this backup; the current ones were kept." )
 	}
 	if result.SavedConfig != "" {
 		fmt.Printf( "config.yaml was left as it is; the backup's copy is at %s\n" , result.SavedConfig )

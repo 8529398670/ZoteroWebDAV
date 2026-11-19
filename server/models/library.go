@@ -98,14 +98,14 @@ func ValidLibraryKind( kind string ) ( result bool ) {
 	return
 }
 
-func libraryRecordKey( user_id uint64 , kind string , key string ) ( result []byte ) {
-	result = append( encryption.Uint64ToBytes( user_id ) , kind[ 0 ] )
+func libraryRecordKey( library_id uint64 , kind string , key string ) ( result []byte ) {
+	result = append( encryption.Uint64ToBytes( library_id ) , kind[ 0 ] )
 	result = append( result , key... )
 	return
 }
 
-func libraryRevKey( user_id uint64 , rev uint64 ) ( result []byte ) {
-	result = encryption.Uint64ToBytes( user_id )
+func libraryRevKey( library_id uint64 , rev uint64 ) ( result []byte ) {
+	result = encryption.Uint64ToBytes( library_id )
 	result = binary.BigEndian.AppendUint64( result , rev )
 	return
 }
@@ -206,24 +206,24 @@ func ValidLibraryData( key string , data json.RawMessage ) ( err error ) {
 }
 
 // nextRevTx hands out the account's next change number.
-func nextRevTx( tx *db.Tx , user_id uint64 ) ( rev uint64 , err error ) {
+func nextRevTx( tx *db.Tx , library_id uint64 ) ( rev uint64 , err error ) {
 	meta := &libraryMeta{}
-	if get_err := tx.Get( db.BucketLibraryMeta , encryption.Uint64ToBytes( user_id ) , meta ); get_err != nil && errors.Is( get_err , db.ErrNotFound ) == false {
+	if get_err := tx.Get( db.BucketLibraryMeta , encryption.Uint64ToBytes( library_id ) , meta ); get_err != nil && errors.Is( get_err , db.ErrNotFound ) == false {
 		err = get_err
 		return
 	}
 	meta.Rev += 1
 	rev = meta.Rev
-	err = tx.Put( db.BucketLibraryMeta , encryption.Uint64ToBytes( user_id ) , meta )
+	err = tx.Put( db.BucketLibraryMeta , encryption.Uint64ToBytes( library_id ) , meta )
 	return
 }
 
 // LibraryRev is the account's last change number, what a client that has
 // read everything passes as since next time, and the newest tombstone purged:
 // a since below that has to start again from 0.
-func LibraryRev( store *db.Store , user_id uint64 ) ( rev uint64 , purged uint64 , err error ) {
+func LibraryRev( store *db.Store , library_id uint64 ) ( rev uint64 , purged uint64 , err error ) {
 	meta := &libraryMeta{}
-	err = store.Get( db.BucketLibraryMeta , encryption.Uint64ToBytes( user_id ) , meta )
+	err = store.Get( db.BucketLibraryMeta , encryption.Uint64ToBytes( library_id ) , meta )
 	if errors.Is( err , db.ErrNotFound ) { err = nil }
 	rev , purged = meta.Rev , meta.PurgedRev
 	return
@@ -231,14 +231,14 @@ func LibraryRev( store *db.Store , user_id uint64 ) ( rev uint64 , purged uint64
 
 // writeRecordTx stores record under the next change number, moving its
 // entry in the change index.
-func writeRecordTx( tx *db.Tx , user_id uint64 , record *LibraryRecord , previous_rev uint64 ) ( err error ) {
+func writeRecordTx( tx *db.Tx , library_id uint64 , record *LibraryRecord , previous_rev uint64 ) ( err error ) {
 	if previous_rev != 0 {
-		if err = tx.Delete( db.BucketLibraryRevs , libraryRevKey( user_id , previous_rev ) ); err != nil { return }
+		if err = tx.Delete( db.BucketLibraryRevs , libraryRevKey( library_id , previous_rev ) ); err != nil { return }
 	}
-	if record.Rev , err = nextRevTx( tx , user_id ); err != nil { return }
+	if record.Rev , err = nextRevTx( tx , library_id ); err != nil { return }
 	record.UpdatedAt = time.Now().UTC()
-	if err = tx.Put( db.BucketLibraryRevs , libraryRevKey( user_id , record.Rev ) , &libraryRevEntry{ Kind: record.Kind , Key: record.Key } ); err != nil { return }
-	err = tx.Put( db.BucketLibrary , libraryRecordKey( user_id , record.Kind , record.Key ) , record )
+	if err = tx.Put( db.BucketLibraryRevs , libraryRevKey( library_id , record.Rev ) , &libraryRevEntry{ Kind: record.Kind , Key: record.Key } ); err != nil { return }
+	err = tx.Put( db.BucketLibrary , libraryRecordKey( library_id , record.Kind , record.Key ) , record )
 	return
 }
 
@@ -246,7 +246,7 @@ func writeRecordTx( tx *db.Tx , user_id uint64 , record *LibraryRecord , previou
 // every one. An input identical to what is stored (same version and data)
 // changes nothing and gets no new change number, so a client can push its
 // whole library again cheaply.
-func UpsertLibrary( store *db.Store , user_id uint64 , kind string , inputs []LibraryInput ) ( results []LibraryResult , err error ) {
+func UpsertLibrary( store *db.Store , library_id uint64 , kind string , inputs []LibraryInput ) ( results []LibraryResult , err error ) {
 	if ValidLibraryKind( kind ) == false {
 		err = ErrLibraryKind
 		return
@@ -260,7 +260,7 @@ func UpsertLibrary( store *db.Store , user_id uint64 , kind string , inputs []Li
 			data := json.RawMessage( bytes.TrimSpace( input.Data ) )
 			stored := &LibraryRecord{}
 			previous := uint64( 0 )
-			switch get_err := tx.Get( db.BucketLibrary , libraryRecordKey( user_id , kind , input.Key ) , stored ); {
+			switch get_err := tx.Get( db.BucketLibrary , libraryRecordKey( library_id , kind , input.Key ) , stored ); {
 			case get_err == nil:
 				previous = stored.Rev
 				if stored.Deleted == false && stored.Version == input.Version && bytes.Equal( stored.Data , data ) {
@@ -273,7 +273,7 @@ func UpsertLibrary( store *db.Store , user_id uint64 , kind string , inputs []Li
 			}
 			record := &LibraryRecord{ Kind: kind , Key: input.Key , Version: input.Version , Data: data }
 			record.describe()
-			if tx_err = writeRecordTx( tx , user_id , record , previous ); tx_err != nil { return }
+			if tx_err = writeRecordTx( tx , library_id , record , previous ); tx_err != nil { return }
 			results = append( results , LibraryResult{ Key: input.Key , Rev: record.Rev , Changed: true } )
 		}
 		return
@@ -284,25 +284,25 @@ func UpsertLibrary( store *db.Store , user_id uint64 , kind string , inputs []Li
 
 // DeleteLibraryRecord turns a record into a tombstone. db.ErrNotFound when
 // there is no live record.
-func DeleteLibraryRecord( store *db.Store , user_id uint64 , kind string , key string ) ( rev uint64 , err error ) {
+func DeleteLibraryRecord( store *db.Store , library_id uint64 , kind string , key string ) ( rev uint64 , err error ) {
 	err = store.Write( func( tx *db.Tx ) ( tx_err error ) {
 		stored := &LibraryRecord{}
-		if tx_err = tx.Get( db.BucketLibrary , libraryRecordKey( user_id , kind , key ) , stored ); tx_err != nil { return }
+		if tx_err = tx.Get( db.BucketLibrary , libraryRecordKey( library_id , kind , key ) , stored ); tx_err != nil { return }
 		if stored.Deleted {
 			tx_err = db.ErrNotFound
 			return
 		}
 		tombstone := &LibraryRecord{ Kind: kind , Key: key , Version: stored.Version , Deleted: true }
-		if tx_err = writeRecordTx( tx , user_id , tombstone , stored.Rev ); tx_err != nil { return }
+		if tx_err = writeRecordTx( tx , library_id , tombstone , stored.Rev ); tx_err != nil { return }
 		rev = tombstone.Rev
 		return
 	} )
 	return
 }
 
-func GetLibraryRecord( store *db.Store , user_id uint64 , kind string , key string ) ( record *LibraryRecord , err error ) {
+func GetLibraryRecord( store *db.Store , library_id uint64 , kind string , key string ) ( record *LibraryRecord , err error ) {
 	record = &LibraryRecord{}
-	if err = store.Get( db.BucketLibrary , libraryRecordKey( user_id , kind , key ) , record ); err != nil {
+	if err = store.Get( db.BucketLibrary , libraryRecordKey( library_id , kind , key ) , record ); err != nil {
 		record = nil
 	}
 	return
@@ -310,10 +310,10 @@ func GetLibraryRecord( store *db.Store , user_id uint64 , kind string , key stri
 
 // LibraryChanges is up to limit records changed after since, oldest change
 // first, tombstones included. more says whether there are others after them.
-func LibraryChanges( store *db.Store , user_id uint64 , since uint64 , limit int ) ( records []*LibraryRecord , more bool , err error ) {
+func LibraryChanges( store *db.Store , library_id uint64 , since uint64 , limit int ) ( records []*LibraryRecord , more bool , err error ) {
 	records = []*LibraryRecord{}
 	entries := []*libraryRevEntry{}
-	err = store.ForEachPrefix( db.BucketLibraryRevs , encryption.Uint64ToBytes( user_id ) , libraryRevKey( user_id , since + 1 ) ,
+	err = store.ForEachPrefix( db.BucketLibraryRevs , encryption.Uint64ToBytes( library_id ) , libraryRevKey( library_id , since + 1 ) ,
 		func() any { return &libraryRevEntry{} } ,
 		func( key []byte , item any ) bool {
 			if len( entries ) == limit {
@@ -325,7 +325,7 @@ func LibraryChanges( store *db.Store , user_id uint64 , since uint64 , limit int
 		} )
 	if err != nil { return }
 	for _ , entry := range entries {
-		record , get_err := GetLibraryRecord( store , user_id , entry.Kind , entry.Key )
+		record , get_err := GetLibraryRecord( store , library_id , entry.Kind , entry.Key )
 		if get_err != nil {
 			if errors.Is( get_err , db.ErrNotFound ) { continue }
 			err = get_err
@@ -338,9 +338,9 @@ func LibraryChanges( store *db.Store , user_id uint64 , since uint64 , limit int
 
 // ListLibrary is every live record of one kind, for a screen to search and
 // page through.
-func ListLibrary( store *db.Store , user_id uint64 , kind string ) ( records []*LibraryRecord , err error ) {
+func ListLibrary( store *db.Store , library_id uint64 , kind string ) ( records []*LibraryRecord , err error ) {
 	records = []*LibraryRecord{}
-	prefix := append( encryption.Uint64ToBytes( user_id ) , kind[ 0 ] )
+	prefix := append( encryption.Uint64ToBytes( library_id ) , kind[ 0 ] )
 	err = store.ForEachPrefix( db.BucketLibrary , prefix , nil ,
 		func() any { return &LibraryRecord{} } ,
 		func( key []byte , item any ) bool {
@@ -366,8 +366,8 @@ func PurgeLibraryTombstones( store *db.Store , age time.Duration ) ( removed int
 		func() any { return &LibraryRecord{} } ,
 		func( key []byte , item any ) bool {
 			if record := item.( *LibraryRecord ); record.Deleted && record.UpdatedAt.Before( cutoff ) {
-				user_id := encryption.BytesToUint64( key[ :8 ] )
-				found = append( found , doomed{ key: key , rev: libraryRevKey( user_id , record.Rev ) , user: user_id , at: record.Rev } )
+				library_id := encryption.BytesToUint64( key[ :8 ] )
+				found = append( found , doomed{ key: key , rev: libraryRevKey( library_id , record.Rev ) , user: library_id , at: record.Rev } )
 			}
 			return true
 		} )

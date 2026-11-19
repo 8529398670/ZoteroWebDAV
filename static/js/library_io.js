@@ -80,9 +80,9 @@ const LibraryIO = {
     const collection = Dom.get( "library-io-export-collection" ).value;
     const chosen = this.formats.find( ( each ) => each.id === format ) || {};
     Dom.text( Dom.get( "library-io-export-note" ) , I18n.get( chosen.zotero_imports ? "library_io.export_zotero_note" : "library_io.export_csv_note" ) );
-    Dom.get( "library-io-export-button" ).setAttribute( "href" , "/api/library/export" + Api.query( {
+    Dom.get( "library-io-export-button" ).setAttribute( "href" , Api.withLibrary( "/api/library/export" + Api.query( {
       format: format , files: files ? "true" : "" , collection: collection ,
-    } ) );
+    } ) ) );
   },
 
   // A .ris or .csv file picks its format; anything else leaves the choice.

@@ -3,9 +3,23 @@
 // response into a real Error -- happen once instead of at each call site.
 const Api = {
   csrfToken: null,
+  // The WebDAV library the screens work on, by its WebDAV name; "" is the
+  // account's first. libraries.js sets it. Every WebDAV and library call
+  // carries it, so no screen has to remember to.
+  library: "",
+
+  // path with ?library= added when it is a WebDAV or library route and a
+  // library other than the first is picked. The list of libraries, and the
+  // routes that take a library id in the path, are about every library.
+  withLibrary( path ) {
+    if ( !this.library ) return path;
+    if ( !/^\/api\/(webdav|library)(\/|\?|$)/.test( path ) || path.startsWith( "/api/webdav/libraries" ) ) return path;
+    return path + ( path.includes( "?" ) ? "&" : "?" ) + "library=" + encodeURIComponent( this.library );
+  },
 
   async request( path , options ) {
     const settings = options || {};
+    path = this.withLibrary( path );
     let response;
     try {
       response = await fetch( path , {
@@ -228,7 +242,13 @@ const Api = {
   restoreWebDAVFile( id )      { return this.post( "/api/webdav/trash/" + encodeURIComponent( id ) + "/restore" ); },
   emptyWebDAVTrashEntry( id )  { return this.post( "/api/webdav/trash/" + encodeURIComponent( id ) + "/delete" ); },
   listAdminWebDAV( offset , params ) { return this.request( "/api/admin/webdav" + this.query( { offset: offset , ...params } ) ); },
-  setAdminWebDAV( userId , changes ) { return this.post( "/api/admin/webdav/" + userId , changes ); },
+  setAdminWebDAV( libraryId , changes ) { return this.post( "/api/admin/webdav/" + libraryId , changes ); },
+
+  // WebDAV libraries (libraries.js): each its own folder, name, passwords.
+  listWebDAVLibraries()        { return this.request( "/api/webdav/libraries" ); },
+  createWebDAVLibrary( name , label ) { return this.post( "/api/webdav/libraries" , { name: name , label: label } ); },
+  labelWebDAVLibrary( id , label ) { return this.post( "/api/webdav/libraries/" + id + "/label" , { label: label } ); },
+  deleteWebDAVLibrary( id )    { return this.post( "/api/webdav/libraries/" + id + "/delete" ); },
 
   // The library: what clients pushed beside the files.
   listLibraryItems( offset , params ) { return this.request( "/api/library/items" + this.query( { offset: offset , ...params } ) ); },

@@ -1984,6 +1984,7 @@ Runs POST /api/library/collections/{collection_key} once per item: items holds e
 | `items` | array of object | yes |  | One entry per thing to change: its id, and any field that differs from shared. |
 | `items[].collection_key` | string | yes | 8 to 8 characters | The Zotero collection key: 8 of A-Z and 0-9. |
 | `items[].data` | object | no |  | Zotero's JSON for it: the data object of the Zotero web API, or the same fields read from zotero.sqlite. At most 256 KB. |
+| `items[].library` | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `items[].version` | integer | no | at least 0 | Zotero's version of it, if you have one. Stored and handed back as it is. |
 | `shared` | object | no |  | Fields every item gets, unless the item sets its own. |
 | `shared.data` | object | no |  | Zotero's JSON for it: the data object of the Zotero web API, or the same fields read from zotero.sqlite. At most 256 KB. |
@@ -2011,6 +2012,7 @@ Runs POST /api/library/collections/{collection_key}/delete once per item: items 
 | `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
 | `items` | array of object | yes |  | One entry per thing to change: its id, and any field that differs from shared. |
 | `items[].collection_key` | string | yes | 8 to 8 characters | The Zotero collection key: 8 of A-Z and 0-9. |
+| `items[].library` | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `shared` | object | no |  | Fields every item gets, unless the item sets its own. |
 
 **Reply 200**: Success
@@ -2036,6 +2038,7 @@ Runs POST /api/library/items/{item_key} once per item: items holds each one's id
 | `items` | array of object | yes |  | One entry per thing to change: its id, and any field that differs from shared. |
 | `items[].data` | object | no |  | Zotero's JSON for it: the data object of the Zotero web API, or the same fields read from zotero.sqlite. At most 256 KB. |
 | `items[].item_key` | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `items[].library` | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `items[].version` | integer | no | at least 0 | Zotero's version of it, if you have one. Stored and handed back as it is. |
 | `shared` | object | no |  | Fields every item gets, unless the item sets its own. |
 | `shared.data` | object | no |  | Zotero's JSON for it: the data object of the Zotero web API, or the same fields read from zotero.sqlite. At most 256 KB. |
@@ -2063,6 +2066,7 @@ Runs POST /api/library/items/{item_key}/delete once per item: items holds each o
 | `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
 | `items` | array of object | yes |  | One entry per thing to change: its id, and any field that differs from shared. |
 | `items[].item_key` | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `items[].library` | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `shared` | object | no |  | Fields every item gets, unless the item sets its own. |
 
 **Reply 200**: Success
@@ -2084,6 +2088,7 @@ Every attachment in your WebDAV folder's zotero/, by key: whether its .zip and .
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
 
@@ -2105,6 +2110,12 @@ For up to 1000 keys, whether your WebDAV folder has each attachment's file. A fi
 |---|---|
 | Who may call | browser session or API key, anyone signed in |
 | Errors | 400, 401, 403, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2139,6 +2150,7 @@ Streams a file out of zotero/<KEY>.zip in your WebDAV folder, with nothing unpac
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `name` | query | string | no | at most 1024 characters | Which file in the zip. Default: the main one. |
 
 **Reply 200**: Success
@@ -2159,6 +2171,7 @@ The files in one attachment
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Reply 200**: Success
 
@@ -2185,6 +2198,7 @@ Items and collections changed after since, with their data, oldest change first,
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `since` | query | integer | no | at least 0 | The rev of the last change you have. 0 for everything. |
 | `limit` | query | integer | no | 1 to 1000; default `500` | Records to return. Default 500. |
 
@@ -2210,6 +2224,7 @@ Your collections
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
 | `q` | query | string | no |  | Keep records whose title, creators, year, DOI or key contains this, in any case. |
@@ -2242,6 +2257,7 @@ Creates or replaces one collection: Zotero's JSON for it under data. POST /api/b
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `collection_key` | path | string | yes | 8 to 8 characters | The Zotero collection key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2273,6 +2289,7 @@ Delete a collection
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `collection_key` | path | string | yes | 8 to 8 characters | The Zotero collection key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2303,6 +2320,7 @@ Zotero RDF or RIS (both import into Zotero, files included) or CSV (for spreadsh
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `format` | query | string | no | one of `rdf`, `ris`, `csv` |  |
 | `files` | query | string | no | one of `true`, `false` | true: a zip with each attachment's files under files/, as Zotero's Export Files makes. |
 | `collection` | query | string | no | at most 8 characters | Only this collection and the ones inside it. |
@@ -2349,6 +2367,12 @@ Then send the file in pieces to POST /api/library/import/chunk, and start the im
 | Who may call | browser session or API key, anyone signed in |
 | Errors | 400, 401, 403, 404, 409, 429, 503 |
 
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+
 **Request body**
 
 | Field | Type | Required | Limits | Description |
@@ -2380,6 +2404,7 @@ The body is the next piece, at most chunk_bytes, starting at offset. A piece tha
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `offset` | query | integer | no | at least 0 | Where this piece starts: the bytes sent so far. |
 | `X-CSRF-Token` | header | string | no |  | From GET /api/me. Browser sessions only. |
 
@@ -2404,6 +2429,12 @@ Starts the import in the background. GET /api/library/import/status says how it 
 | Who may call | browser session or API key, anyone signed in |
 | Errors | 400, 401, 403, 404, 409, 429, 503 |
 
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+
 **Request body**
 
 | Field | Type | Required | Limits | Description |
@@ -2425,6 +2456,12 @@ Reads zotero.sqlite (a copy, so a running Zotero is fine) and, with files, stora
 | Who may call | browser session only, the owner |
 | Errors | 400, 403, 404, 409, 429, 503 |
 
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+
 **Request body**
 
 | Field | Type | Required | Limits | Description |
@@ -2445,7 +2482,13 @@ How the import is going
 |  |  |
 |---|---|
 | Who may call | browser session or API key, anyone signed in |
-| Errors | 401, 404, 429, 503 |
+| Errors | 400, 401, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Reply 200**: Success
 
@@ -2466,6 +2509,7 @@ Live items without their data, newest change first unless sort says otherwise. h
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
 | `q` | query | string | no |  | Keep records whose title, creators, year, DOI or key contains this, in any case. |
@@ -2496,6 +2540,7 @@ One item
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Reply 200**: Success
 
@@ -2517,6 +2562,7 @@ Creates or replaces one item: Zotero's JSON for it under data. The same version 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2550,6 +2596,7 @@ The item becomes a tombstone, which GET /api/library/changes hands out for webda
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2570,10 +2617,14 @@ The item becomes a tombstone, which GET /api/library/changes hands out for webda
 | Method | Path | Summary | Who may call |
 |---|---|---|---|
 | GET | [`/api/admin/webdav`](#get-apiadminwebdav) | Everyone's WebDAV folders | browser session or API key, admins |
-| POST | [`/api/admin/webdav/{user_id}`](#post-apiadminwebdavuser_id) | Set someone's WebDAV access or quota | browser session or API key, admins |
+| POST | [`/api/admin/webdav/{library_id}`](#post-apiadminwebdavlibrary_id) | Set someone's WebDAV access or quota | browser session or API key, admins |
 | GET | [`/api/webdav`](#get-apiwebdav) | Your WebDAV folder | browser session or API key, anyone signed in |
 | GET | [`/api/webdav/download`](#get-apiwebdavdownload) | Download a file | browser session or API key, anyone signed in |
 | GET | [`/api/webdav/files`](#get-apiwebdavfiles) | List a folder | browser session or API key, anyone signed in |
+| GET | [`/api/webdav/libraries`](#get-apiwebdavlibraries) | Your WebDAV libraries | browser session or API key, anyone signed in |
+| POST | [`/api/webdav/libraries`](#post-apiwebdavlibraries) | Make a WebDAV library | browser session or API key, anyone signed in |
+| POST | [`/api/webdav/libraries/{library_id}/delete`](#post-apiwebdavlibrarieslibrary_iddelete) | Delete a WebDAV library | browser session or API key, anyone signed in |
+| POST | [`/api/webdav/libraries/{library_id}/label`](#post-apiwebdavlibrarieslibrary_idlabel) | Label a WebDAV library | browser session or API key, anyone signed in |
 | POST | [`/api/webdav/name`](#post-apiwebdavname) | Choose or change your WebDAV name | browser session or API key, anyone signed in |
 | GET | [`/api/webdav/passwords`](#get-apiwebdavpasswords) | Your app passwords | browser session only, anyone signed in |
 | POST | [`/api/webdav/passwords`](#post-apiwebdavpasswords) | Make an app password | browser session only, anyone signed in |
@@ -2589,7 +2640,7 @@ The item becomes a tombstone, which GET /api/library/changes hands out for webda
 
 Everyone's WebDAV folders
 
-Every account with a WebDAV name: whether it may use WebDAV, its quota and how much it holds. Never what is in the folders.
+Every WebDAV library, with the account that owns it: whether it may be used, its quota and how much it holds. Never what is in the folders.
 
 |  |  |
 |---|---|
@@ -2615,9 +2666,11 @@ Every account with a WebDAV name: whether it may use WebDAV, its quota and how m
 | `next` | integer or null | yes |  | Offset of the next page, or null on the last one. |
 | `total` | integer | yes |  |  |
 
-### POST /api/admin/webdav/{user_id}
+### POST /api/admin/webdav/{library_id}
 
 Set someone's WebDAV access or quota
+
+library_id is from GET /api/admin/webdav. An account's first library has the account's own id, so the user id still works for it.
 
 |  |  |
 |---|---|
@@ -2628,7 +2681,7 @@ Set someone's WebDAV access or quota
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
-| `user_id` | path | integer | yes | at least 1 | The account's id, from GET /api/admin/users (admin_list_users over MCP). |
+| `library_id` | path | integer | yes | at least 1 | The library's id, from GET /api/webdav/libraries. |
 
 **Request body**
 
@@ -2648,12 +2701,18 @@ Set someone's WebDAV access or quota
 
 Your WebDAV folder
 
-Your WebDAV name, the address to give Zotero or another client, and how full your folder is. account is null until you choose a name (POST /api/webdav/name).
+One of your WebDAV libraries (library, default your first): its name, the address to give Zotero or another client, and how full it is, plus the list of all of them. account is null until you choose a name (POST /api/webdav/name).
 
 |  |  |
 |---|---|
 | Who may call | browser session or API key, anyone signed in |
-| Errors | 401, 404, 429, 503 |
+| Errors | 400, 401, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Reply 200**: Success
 
@@ -2663,7 +2722,9 @@ Your WebDAV name, the address to give Zotero or another client, and how full you
 | `base_url` | string | yes |  | What every WebDAV address here starts with. |
 | `encrypt_at_rest` | boolean | yes |  |  |
 | `host_path` | string | no |  | url without its scheme: what goes in Zotero's URL box, beside its http/https choice. |
+| `libraries` | array of [`WebDAVLibrary`](#webdavlibrary) | yes |  | All your WebDAV libraries, the first one first. account is the one this reply is about. |
 | `max_file_bytes` | integer | yes |  |  |
+| `max_libraries` | integer | yes |  | How many libraries you may have; 0 is no limit. |
 | `scheme` | string | yes | one of `http`, `https` |  |
 | `suggested_name` | string | no |  | A name made from your display name, when you have none yet. |
 | `url` | string | no |  | Your folder: what to give a WebDAV client. Zotero adds /zotero/ itself. |
@@ -2682,6 +2743,7 @@ Download a file
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `path` | query | string | no | 1 to 4096 characters | The file, like /papers/smith2020.pdf. |
 
 **Reply 200**: Success
@@ -2703,6 +2765,7 @@ What one folder of your WebDAV folder holds, folders first. Encrypted files show
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `path` | query | string | no | at most 4096 characters | A path in your folder, like /zotero. Default /. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
@@ -2716,6 +2779,102 @@ What one folder of your WebDAV folder holds, folders first. Encrypted files show
 | `path` | string | yes |  |  |
 | `total` | integer | yes |  |  |
 
+### GET /api/webdav/libraries
+
+Your WebDAV libraries
+
+Each library is its own WebDAV folder, with its own name, app passwords, quota and metadata library (say one per Zotero profile). Every WebDAV and library route takes library=<name> to pick one; without it they use the first.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 401, 404, 429, 503 |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `libraries` | array of [`WebDAVLibrary`](#webdavlibrary) | yes |  |  |
+| `max_libraries` | integer | yes |  | How many you may have; 0 is no limit. |
+
+### POST /api/webdav/libraries
+
+Make a WebDAV library
+
+A new, empty WebDAV folder with its own name, app passwords and quota. 409 when the name is taken or you already have webdav.max_libraries_per_user.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `label` | string | no | at most 60 characters | What it is for: Work, Personal. |
+| `name` | string | yes | 2 to 32 characters | Its WebDAV name: 2-32 lowercase letters, digits and -. It is also the user name its app passwords go with. |
+
+**Reply 201**: Success
+
+[`WebDAVLibrary`](#webdavlibrary).
+
+### POST /api/webdav/libraries/{library_id}/delete
+
+Delete a WebDAV library
+
+Its app passwords stop at once, its metadata goes, and its files are removed by the next WebDAV upkeep run. There is no undo. Your first library cannot be deleted (403).
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library_id` | path | integer | yes | at least 1 | The library's id, from GET /api/webdav/libraries. |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `ok` | boolean | yes |  |  |
+
+### POST /api/webdav/libraries/{library_id}/label
+
+Label a WebDAV library
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library_id` | path | integer | yes | at least 1 | The library's id, from GET /api/webdav/libraries. |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `label` | string | yes | at most 60 characters | What it is for. Empty clears it. |
+
+**Reply 200**: Success
+
+[`WebDAVLibrary`](#webdavlibrary).
+
 ### POST /api/webdav/name
 
 Choose or change your WebDAV name
@@ -2726,6 +2885,12 @@ The name is the folder in your WebDAV address. Changing it moves no file, and th
 |---|---|
 | Who may call | browser session or API key, anyone signed in |
 | Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2742,7 +2907,9 @@ The name is the folder in your WebDAV address. Changing it moves no file, and th
 | `base_url` | string | yes |  | What every WebDAV address here starts with. |
 | `encrypt_at_rest` | boolean | yes |  |  |
 | `host_path` | string | no |  | url without its scheme: what goes in Zotero's URL box, beside its http/https choice. |
+| `libraries` | array of [`WebDAVLibrary`](#webdavlibrary) | yes |  | All your WebDAV libraries, the first one first. account is the one this reply is about. |
 | `max_file_bytes` | integer | yes |  |  |
+| `max_libraries` | integer | yes |  | How many libraries you may have; 0 is no limit. |
 | `scheme` | string | yes | one of `http`, `https` |  |
 | `suggested_name` | string | no |  | A name made from your display name, when you have none yet. |
 | `url` | string | no |  | Your folder: what to give a WebDAV client. Zotero adds /zotero/ itself. |
@@ -2761,6 +2928,8 @@ Your app passwords
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+| `all` | query | string | no | one of `true` | true: every library's app passwords, not just library's. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
 
@@ -2776,12 +2945,18 @@ Your app passwords
 
 Make an app password
 
-An app password signs a WebDAV client in to your folder, with your WebDAV name as the user name. It reaches WebDAV only, never this API. It is shown in this response only.
+An app password signs a WebDAV client in to one of your libraries (library, default your first), with that library's WebDAV name as the user name. It reaches that library only, and never this API. It is shown in this response only.
 
 |  |  |
 |---|---|
 | Who may call | browser session only, anyone signed in |
 | Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2883,6 +3058,7 @@ Your trash
 
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `limit` | query | integer | no | 1 to 1000; default `200` | Rows to return. Default 200. |
 | `offset` | query | integer | no | at least 0 | Rows to skip: the next value of the previous page. |
 
@@ -2904,6 +3080,12 @@ It can be put back (POST /api/webdav/trash/{trash_id}/restore) until it is empti
 |---|---|
 | Who may call | browser session or API key, anyone signed in |
 | Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2930,6 +3112,7 @@ Delete a trash entry for good
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `trash_id` | path | string | yes | 16 to 64 characters | The trash entry's id, from GET /api/webdav/trash. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2957,6 +3140,7 @@ Put a file or folder back
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `trash_id` | path | string | yes | 16 to 64 characters | The trash entry's id, from GET /api/webdav/trash. |
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 
 **Request body**
 
@@ -2998,12 +3182,15 @@ The shapes the routes above refer to by name.
 |---|---|---|---|---|
 | `display_name` | string | yes |  |  |
 | `enabled` | boolean | yes |  |  |
+| `id` | integer | yes |  | The library's id. An account's first library has the account's own id. |
+| `label` | string | no |  | The owner's note on what it is for. |
 | `name` | string | yes |  |  |
 | `name_locked` | boolean | yes |  | true when an admin has stopped this account changing its WebDAV name. |
+| `primary` | boolean | yes |  | true for the account's first library, the one used when no library is named. It cannot be deleted. |
 | `quota_bytes` | integer | yes |  | 0 means no limit. |
 | `quota_set` | boolean | yes |  | true when an admin set this account's quota; false when it follows webdav.default_quota_gb. |
 | `used_bytes` | integer | yes |  |  |
-| `user_id` | integer | yes |  |  |
+| `user_id` | integer | yes |  | The account that owns the library. |
 
 ### AppPassword
 
@@ -3014,6 +3201,8 @@ The shapes the routes above refer to by name.
 | `expires_at` | string (date-time) | no |  |  |
 | `id` | string | yes |  |  |
 | `last_used_at` | string (date-time) | no |  |  |
+| `library` | string | no |  | That library's WebDAV name: the user name that goes with it. |
+| `library_id` | integer | yes |  | The one WebDAV library it opens. |
 | `live` | boolean | yes |  |  |
 | `name` | string | yes |  |  |
 | `revoked` | boolean | yes |  |  |
@@ -3260,11 +3449,13 @@ The shapes the routes above refer to by name.
 | `expires_at` | string (date-time) | no |  |  |
 | `id` | string | yes |  |  |
 | `last_used_at` | string (date-time) | no |  |  |
+| `library` | string | no |  | That library's WebDAV name: the user name that goes with it. |
+| `library_id` | integer | yes |  | The one WebDAV library it opens. |
 | `live` | boolean | yes |  |  |
 | `name` | string | yes |  |  |
 | `revoked` | boolean | yes |  |  |
 | `revoked_at` | string (date-time) | no |  |  |
-| `username` | string | yes |  | Your WebDAV name: the user name that goes with it. |
+| `username` | string | yes |  | The library's WebDAV name: the user name that goes with it. |
 
 ### PruneResult
 
@@ -3404,8 +3595,11 @@ One of these:
 | Field | Type | Required | Limits | Description |
 |---|---|---|---|---|
 | `enabled` | boolean | yes |  |  |
+| `id` | integer | yes |  | The library's id. An account's first library has the account's own id. |
+| `label` | string | no |  | The owner's note on what it is for. |
 | `name` | string | yes |  |  |
 | `name_locked` | boolean | yes |  | true when an admin has stopped this account changing its WebDAV name. |
+| `primary` | boolean | yes |  | true for the account's first library, the one used when no library is named. It cannot be deleted. |
 | `quota_bytes` | integer | yes |  | 0 means no limit. |
 | `quota_set` | boolean | yes |  | true when an admin set this account's quota; false when it follows webdav.default_quota_gb. |
 | `used_bytes` | integer | yes |  |  |
@@ -3419,6 +3613,22 @@ One of these:
 | `name` | string | yes |  |  |
 | `path` | string | yes |  |  |
 | `size` | integer | yes |  |  |
+
+### WebDAVLibrary
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `enabled` | boolean | yes |  |  |
+| `host_path` | string | yes |  | url without its scheme, for Zotero's URL box. |
+| `id` | integer | yes |  | The library's id. An account's first library has the account's own id. |
+| `label` | string | no |  | The owner's note on what it is for. |
+| `name` | string | yes |  |  |
+| `name_locked` | boolean | yes |  | true when an admin has stopped this account changing its WebDAV name. |
+| `primary` | boolean | yes |  | true for the account's first library, the one used when no library is named. It cannot be deleted. |
+| `quota_bytes` | integer | yes |  | 0 means no limit. |
+| `quota_set` | boolean | yes |  | true when an admin set this account's quota; false when it follows webdav.default_quota_gb. |
+| `url` | string | yes |  | What to give a WebDAV client. Zotero adds /zotero/ itself. |
+| `used_bytes` | integer | yes |  |  |
 
 ### WebDAVTrashEntry
 

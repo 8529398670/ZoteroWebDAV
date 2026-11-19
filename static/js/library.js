@@ -39,7 +39,7 @@ const Library = {
     return Dom.el( "a" , {
       class: "btn btn-sm btn-outline-secondary",
       text: I18n.get( "library.file_button" ),
-      attrs: { href: "/api/library/attachments/" + encodeURIComponent( record.file_key || record.key ) + "/file" , download: "" },
+      attrs: { href: Api.withLibrary( "/api/library/attachments/" + encodeURIComponent( record.file_key || record.key ) + "/file" ) , download: "" },
     } );
   },
 };

@@ -236,6 +236,7 @@ func ( server *Server ) routes() ( handler http.Handler ) {
 	mux.HandleFunc( "GET /v1/webdav" , server.handleListDAV )
 	mux.HandleFunc( "POST /v1/webdav/{id}/name" , server.handleSetDAVName )
 	mux.HandleFunc( "POST /v1/webdav/{id}/passwords" , server.handleCreateDAVPassword )
+	mux.HandleFunc( "POST /v1/webdav/{id}/libraries" , server.handleCreateDAVLibrary )
 	handler = mux
 	return
 }
@@ -282,6 +283,7 @@ func pathUserID( w http.ResponseWriter , r *http.Request ) ( user_id uint64 , ok
 type BackupRequest struct {
 	Out        string `json:"out"`
 	IncludeKey bool   `json:"include_key"`
+	IncludeDAV bool   `json:"include_dav"`
 }
 
 // handleBackup is why a backup can run against a live server: bolt lets only
@@ -289,7 +291,7 @@ type BackupRequest struct {
 func ( server *Server ) handleBackup( w http.ResponseWriter , r *http.Request ) {
 	request := BackupRequest{}
 	if decodeBody( w , r , &request ) == false { return }
-	result , err := backup.Create( server.store , server.settings.Get() , backup.Options{ Out: request.Out , IncludeKey: request.IncludeKey } )
+	result , err := backup.Create( server.store , server.settings.Get() , backup.Options{ Out: request.Out , IncludeKey: request.IncludeKey , IncludeDAV: request.IncludeDAV } )
 	if err != nil {
 		writeError( w , http.StatusInternalServerError , err.Error() )
 		return

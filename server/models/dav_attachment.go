@@ -73,18 +73,18 @@ func ZoteroProp( mtime int64 , md5 string ) ( raw []byte ) {
 	return
 }
 
-func attachmentKey( user_id uint64 , key string ) ( result []byte ) {
-	result = append( encryption.Uint64ToBytes( user_id ) , key... )
+func attachmentKey( library_id uint64 , key string ) ( result []byte ) {
+	result = append( encryption.Uint64ToBytes( library_id ) , key... )
 	return
 }
 
 // changeDAVAttachment edits one index row, making it when change finds none,
 // and drops it once it has neither file.
-func changeDAVAttachment( store *db.Store , user_id uint64 , key string , change func( row *DAVAttachment ) ) ( err error ) {
+func changeDAVAttachment( store *db.Store , library_id uint64 , key string , change func( row *DAVAttachment ) ) ( err error ) {
 	if ZoteroKeyPattern.MatchString( key ) == false { return }
 	err = store.Write( func( tx *db.Tx ) ( tx_err error ) {
 		row := &DAVAttachment{}
-		if get_err := tx.Get( db.BucketDAVAttachments , attachmentKey( user_id , key ) , row ); get_err != nil {
+		if get_err := tx.Get( db.BucketDAVAttachments , attachmentKey( library_id , key ) , row ); get_err != nil {
 			if errors.Is( get_err , db.ErrNotFound ) == false {
 				tx_err = get_err
 				return
@@ -94,10 +94,10 @@ func changeDAVAttachment( store *db.Store , user_id uint64 , key string , change
 		change( row )
 		row.UpdatedAt = time.Now().UTC()
 		if row.HasProp == false && row.HasZip == false {
-			tx_err = tx.Delete( db.BucketDAVAttachments , attachmentKey( user_id , key ) )
+			tx_err = tx.Delete( db.BucketDAVAttachments , attachmentKey( library_id , key ) )
 			return
 		}
-		tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( user_id , key ) , row )
+		tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( library_id , key ) , row )
 		return
 	} )
 	return
@@ -105,48 +105,48 @@ func changeDAVAttachment( store *db.Store , user_id uint64 , key string , change
 
 // NoteDAVProp records a .prop written; a .prop that does not parse counts as
 // no .prop, as it does to Zotero, which deletes it.
-func NoteDAVProp( store *db.Store , user_id uint64 , key string , raw []byte ) ( err error ) {
+func NoteDAVProp( store *db.Store , library_id uint64 , key string , raw []byte ) ( err error ) {
 	mtime , md5 , parse_err := ParseZoteroProp( raw )
-	err = changeDAVAttachment( store , user_id , key , func( row *DAVAttachment ) {
+	err = changeDAVAttachment( store , library_id , key , func( row *DAVAttachment ) {
 		row.HasProp = parse_err == nil
 		row.MTime , row.MD5 = mtime , md5
 	} )
 	return
 }
 
-func NoteDAVZip( store *db.Store , user_id uint64 , key string , size int64 ) ( err error ) {
-	err = changeDAVAttachment( store , user_id , key , func( row *DAVAttachment ) {
+func NoteDAVZip( store *db.Store , library_id uint64 , key string , size int64 ) ( err error ) {
+	err = changeDAVAttachment( store , library_id , key , func( row *DAVAttachment ) {
 		row.HasZip , row.ZipSize = true , size
 	} )
 	return
 }
 
-func ForgetDAVProp( store *db.Store , user_id uint64 , key string ) ( err error ) {
-	err = changeDAVAttachment( store , user_id , key , func( row *DAVAttachment ) {
+func ForgetDAVProp( store *db.Store , library_id uint64 , key string ) ( err error ) {
+	err = changeDAVAttachment( store , library_id , key , func( row *DAVAttachment ) {
 		row.HasProp , row.MTime , row.MD5 = false , 0 , ""
 	} )
 	return
 }
 
-func ForgetDAVZip( store *db.Store , user_id uint64 , key string ) ( err error ) {
-	err = changeDAVAttachment( store , user_id , key , func( row *DAVAttachment ) {
+func ForgetDAVZip( store *db.Store , library_id uint64 , key string ) ( err error ) {
+	err = changeDAVAttachment( store , library_id , key , func( row *DAVAttachment ) {
 		row.HasZip , row.ZipSize = false , 0
 	} )
 	return
 }
 
-func GetDAVAttachment( store *db.Store , user_id uint64 , key string ) ( row *DAVAttachment , err error ) {
+func GetDAVAttachment( store *db.Store , library_id uint64 , key string ) ( row *DAVAttachment , err error ) {
 	row = &DAVAttachment{}
-	if err = store.Get( db.BucketDAVAttachments , attachmentKey( user_id , key ) , row ); err != nil {
+	if err = store.Get( db.BucketDAVAttachments , attachmentKey( library_id , key ) , row ); err != nil {
 		row = nil
 	}
 	return
 }
 
 // ListDAVAttachments is one account's index, by key.
-func ListDAVAttachments( store *db.Store , user_id uint64 ) ( rows []*DAVAttachment , err error ) {
+func ListDAVAttachments( store *db.Store , library_id uint64 ) ( rows []*DAVAttachment , err error ) {
 	rows = []*DAVAttachment{}
-	err = store.ForEachPrefix( db.BucketDAVAttachments , encryption.Uint64ToBytes( user_id ) , nil ,
+	err = store.ForEachPrefix( db.BucketDAVAttachments , encryption.Uint64ToBytes( library_id ) , nil ,
 		func() any { return &DAVAttachment{} } ,
 		func( key []byte , item any ) bool {
 			rows = append( rows , item.( *DAVAttachment ) )
@@ -157,12 +157,12 @@ func ListDAVAttachments( store *db.Store , user_id uint64 ) ( rows []*DAVAttachm
 
 // ReplaceDAVAttachments makes the index exactly rows, in one transaction:
 // dav-reconcile's answer after reading the folder itself.
-func ReplaceDAVAttachments( store *db.Store , user_id uint64 , rows []*DAVAttachment ) ( err error ) {
+func ReplaceDAVAttachments( store *db.Store , library_id uint64 , rows []*DAVAttachment ) ( err error ) {
 	sort.Slice( rows , func( i int , j int ) bool { return rows[ i ].Key < rows[ j ].Key } )
 	err = store.Write( func( tx *db.Tx ) ( tx_err error ) {
-		if tx_err = tx.DeletePrefix( db.BucketDAVAttachments , encryption.Uint64ToBytes( user_id ) ); tx_err != nil { return }
+		if tx_err = tx.DeletePrefix( db.BucketDAVAttachments , encryption.Uint64ToBytes( library_id ) ); tx_err != nil { return }
 		for _ , row := range rows {
-			if tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( user_id , row.Key ) , row ); tx_err != nil { return }
+			if tx_err = tx.Put( db.BucketDAVAttachments , attachmentKey( library_id , row.Key ) , row ); tx_err != nil { return }
 		}
 		return
 	} )

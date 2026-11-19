@@ -153,11 +153,23 @@
           "enabled": {
             "type": "boolean"
           },
+          "id": {
+            "description": "The library's id. An account's first library has the account's own id.",
+            "type": "integer"
+          },
+          "label": {
+            "description": "The owner's note on what it is for.",
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "name_locked": {
             "description": "true when an admin has stopped this account changing its WebDAV name.",
+            "type": "boolean"
+          },
+          "primary": {
+            "description": "true for the account's first library, the one used when no library is named. It cannot be deleted.",
             "type": "boolean"
           },
           "quota_bytes": {
@@ -172,14 +184,17 @@
             "type": "integer"
           },
           "user_id": {
+            "description": "The account that owns the library.",
             "type": "integer"
           }
         },
         "required": [
           "display_name",
           "enabled",
+          "id",
           "name",
           "name_locked",
+          "primary",
           "quota_bytes",
           "quota_set",
           "used_bytes",
@@ -207,6 +222,14 @@
             "format": "date-time",
             "type": "string"
           },
+          "library": {
+            "description": "That library's WebDAV name: the user name that goes with it.",
+            "type": "string"
+          },
+          "library_id": {
+            "description": "The one WebDAV library it opens.",
+            "type": "integer"
+          },
           "live": {
             "type": "boolean"
           },
@@ -225,6 +248,7 @@
           "created_at",
           "expired",
           "id",
+          "library_id",
           "live",
           "name",
           "revoked"
@@ -1085,6 +1109,14 @@
             "format": "date-time",
             "type": "string"
           },
+          "library": {
+            "description": "That library's WebDAV name: the user name that goes with it.",
+            "type": "string"
+          },
+          "library_id": {
+            "description": "The one WebDAV library it opens.",
+            "type": "integer"
+          },
           "live": {
             "type": "boolean"
           },
@@ -1099,7 +1131,7 @@
             "type": "string"
           },
           "username": {
-            "description": "Your WebDAV name: the user name that goes with it.",
+            "description": "The library's WebDAV name: the user name that goes with it.",
             "type": "string"
           }
         },
@@ -1108,6 +1140,7 @@
           "credential",
           "expired",
           "id",
+          "library_id",
           "live",
           "name",
           "revoked",
@@ -1681,11 +1714,23 @@
           "enabled": {
             "type": "boolean"
           },
+          "id": {
+            "description": "The library's id. An account's first library has the account's own id.",
+            "type": "integer"
+          },
+          "label": {
+            "description": "The owner's note on what it is for.",
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "name_locked": {
             "description": "true when an admin has stopped this account changing its WebDAV name.",
+            "type": "boolean"
+          },
+          "primary": {
+            "description": "true for the account's first library, the one used when no library is named. It cannot be deleted.",
             "type": "boolean"
           },
           "quota_bytes": {
@@ -1702,8 +1747,10 @@
         },
         "required": [
           "enabled",
+          "id",
           "name",
           "name_locked",
+          "primary",
           "quota_bytes",
           "quota_set",
           "used_bytes"
@@ -1735,6 +1782,64 @@
           "name",
           "path",
           "size"
+        ],
+        "type": "object"
+      },
+      "WebDAVLibrary": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "host_path": {
+            "description": "url without its scheme, for Zotero's URL box.",
+            "type": "string"
+          },
+          "id": {
+            "description": "The library's id. An account's first library has the account's own id.",
+            "type": "integer"
+          },
+          "label": {
+            "description": "The owner's note on what it is for.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_locked": {
+            "description": "true when an admin has stopped this account changing its WebDAV name.",
+            "type": "boolean"
+          },
+          "primary": {
+            "description": "true for the account's first library, the one used when no library is named. It cannot be deleted.",
+            "type": "boolean"
+          },
+          "quota_bytes": {
+            "description": "0 means no limit.",
+            "type": "integer"
+          },
+          "quota_set": {
+            "description": "true when an admin set this account's quota; false when it follows webdav.default_quota_gb.",
+            "type": "boolean"
+          },
+          "url": {
+            "description": "What to give a WebDAV client. Zotero adds /zotero/ itself.",
+            "type": "string"
+          },
+          "used_bytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "host_path",
+          "id",
+          "name",
+          "name_locked",
+          "primary",
+          "quota_bytes",
+          "quota_set",
+          "url",
+          "used_bytes"
         ],
         "type": "object"
       },
@@ -5031,7 +5136,7 @@
     },
     "/api/admin/webdav": {
       "get": {
-        "description": "Every account with a WebDAV name: whether it may use WebDAV, its quota and how much it holds. Never what is in the folders.",
+        "description": "Every WebDAV library, with the account that owns it: whether it may be used, its quota and how much it holds. Never what is in the folders.",
         "operationId": "get_api_admin_webdav",
         "parameters": [
           {
@@ -5163,14 +5268,15 @@
       },
       "x-feature": "webdav"
     },
-    "/api/admin/webdav/{user_id}": {
+    "/api/admin/webdav/{library_id}": {
       "post": {
-        "operationId": "post_api_admin_webdav_user_id",
+        "description": "library_id is from GET /api/admin/webdav. An account's first library has the account's own id, so the user id still works for it.",
+        "operationId": "post_api_admin_webdav_library_id",
         "parameters": [
           {
-            "description": "The account's id, from GET /api/admin/users (admin_list_users over MCP).",
+            "description": "The library's id, from GET /api/webdav/libraries.",
             "in": "path",
-            "name": "user_id",
+            "name": "library_id",
             "required": true,
             "schema": {
               "minimum": 1,
@@ -6158,6 +6264,11 @@
                           "description": "Zotero's JSON for it: the data object of the Zotero web API, or the same fields read from zotero.sqlite. At most 256 KB.",
                           "type": "object"
                         },
+                        "library": {
+                          "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+                          "maxLength": 32,
+                          "type": "string"
+                        },
                         "version": {
                           "description": "Zotero's version of it, if you have one. Stored and handed back as it is.",
                           "minimum": 0,
@@ -6269,6 +6380,11 @@
                           "maxLength": 8,
                           "minLength": 8,
                           "type": "string"
+                        },
+                        "library": {
+                          "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+                          "maxLength": 32,
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -6369,6 +6485,11 @@
                           "description": "The Zotero item key: 8 of A-Z and 0-9.",
                           "maxLength": 8,
                           "minLength": 8,
+                          "type": "string"
+                        },
+                        "library": {
+                          "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+                          "maxLength": 32,
                           "type": "string"
                         },
                         "version": {
@@ -6481,6 +6602,11 @@
                           "description": "The Zotero item key: 8 of A-Z and 0-9.",
                           "maxLength": 8,
                           "minLength": 8,
+                          "type": "string"
+                        },
+                        "library": {
+                          "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+                          "maxLength": 32,
                           "type": "string"
                         }
                       },
@@ -7350,6 +7476,15 @@
         "operationId": "get_api_library_attachments",
         "parameters": [
           {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
             "description": "Rows to return. Default 200.",
             "in": "query",
             "name": "limit",
@@ -7439,6 +7574,17 @@
       "post": {
         "description": "For up to 1000 keys, whether your WebDAV folder has each attachment's file. A file counts only with both its .zip and its .prop, since Zotero writes the .prop last.",
         "operationId": "post_api_library_attachments_check",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7572,6 +7718,15 @@
             }
           },
           {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
             "description": "Which file in the zip. Default: the main one.",
             "in": "query",
             "name": "name",
@@ -7636,6 +7791,15 @@
             "schema": {
               "maxLength": 8,
               "minLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           }
@@ -7719,6 +7883,15 @@
         "description": "Items and collections changed after since, with their data, oldest change first, deletes included as tombstones. Ask again with since=rev while more is true. A since older than the tombstones kept answers full_resync: true.",
         "operationId": "get_api_library_changes",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
           {
             "description": "The rev of the last change you have. 0 for everything.",
             "in": "query",
@@ -7813,6 +7986,15 @@
       "get": {
         "operationId": "get_api_library_collections",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
           {
             "description": "Rows to return. Default 200.",
             "in": "query",
@@ -7965,6 +8147,15 @@
               "minLength": 8,
               "type": "string"
             }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -8073,6 +8264,15 @@
               "minLength": 8,
               "type": "string"
             }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -8160,6 +8360,15 @@
         "description": "Zotero RDF or RIS (both import into Zotero, files included) or CSV (for spreadsheets). With files=true it is a zip of the export and its files/ folder: unzip it and import the file inside with Zotero's File > Import.",
         "operationId": "get_api_library_export",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
           {
             "in": "query",
             "name": "format",
@@ -8342,6 +8551,17 @@
       "post": {
         "description": "Then send the file in pieces to POST /api/library/import/chunk, and start the import with POST /api/library/import/finish. The file is a Zotero export, or a zip of the folder Zotero makes with Export Files ticked.",
         "operationId": "post_api_library_import_begin",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -8453,6 +8673,15 @@
         "operationId": "post_api_library_import_chunk",
         "parameters": [
           {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
             "description": "Where this piece starts: the bytes sent so far.",
             "in": "query",
             "name": "offset",
@@ -8541,6 +8770,17 @@
       "post": {
         "description": "Starts the import in the background. GET /api/library/import/status says how it goes.",
         "operationId": "post_api_library_import_finish",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -8610,6 +8850,17 @@
       "post": {
         "description": "Reads zotero.sqlite (a copy, so a running Zotero is fine) and, with files, storage/. Only with webdav.import_local_paths on. Items keep their Zotero keys.",
         "operationId": "post_api_library_import_local",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -8693,6 +8944,17 @@
     "/api/library/import/status": {
       "get": {
         "operationId": "get_api_library_import_status",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8703,6 +8965,9 @@
               }
             },
             "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -8737,6 +9002,15 @@
         "description": "Live items without their data, newest change first unless sort says otherwise. has_file says whether your WebDAV folder has an attachment's file.",
         "operationId": "get_api_library_items",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
           {
             "description": "Rows to return. Default 200.",
             "in": "query",
@@ -8888,6 +9162,15 @@
               "minLength": 8,
               "type": "string"
             }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8942,6 +9225,15 @@
             "schema": {
               "maxLength": 8,
               "minLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           }
@@ -9051,6 +9343,15 @@
             "schema": {
               "maxLength": 8,
               "minLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           }
@@ -10386,8 +10687,19 @@
     },
     "/api/webdav": {
       "get": {
-        "description": "Your WebDAV name, the address to give Zotero or another client, and how full your folder is. account is null until you choose a name (POST /api/webdav/name).",
+        "description": "One of your WebDAV libraries (library, default your first): its name, the address to give Zotero or another client, and how full it is, plus the list of all of them. account is null until you choose a name (POST /api/webdav/name).",
         "operationId": "get_api_webdav",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -10416,7 +10728,18 @@
                       "description": "url without its scheme: what goes in Zotero's URL box, beside its http/https choice.",
                       "type": "string"
                     },
+                    "libraries": {
+                      "description": "All your WebDAV libraries, the first one first. account is the one this reply is about.",
+                      "items": {
+                        "$ref": "#/components/schemas/WebDAVLibrary"
+                      },
+                      "type": "array"
+                    },
                     "max_file_bytes": {
+                      "type": "integer"
+                    },
+                    "max_libraries": {
+                      "description": "How many libraries you may have; 0 is no limit.",
                       "type": "integer"
                     },
                     "scheme": {
@@ -10443,7 +10766,9 @@
                     "account",
                     "base_url",
                     "encrypt_at_rest",
+                    "libraries",
                     "max_file_bytes",
+                    "max_libraries",
                     "scheme"
                   ],
                   "type": "object"
@@ -10451,6 +10776,9 @@
               }
             },
             "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -10484,6 +10812,15 @@
       "get": {
         "operationId": "get_api_webdav_download",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
           {
             "description": "The file, like /papers/smith2020.pdf.",
             "in": "query",
@@ -10546,6 +10883,15 @@
         "description": "What one folder of your WebDAV folder holds, folders first. Encrypted files show their real size.",
         "operationId": "get_api_webdav_files",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
           {
             "description": "A path in your folder, like /zotero. Default /.",
             "in": "query",
@@ -10648,10 +10994,331 @@
       },
       "x-feature": "webdav"
     },
+    "/api/webdav/libraries": {
+      "get": {
+        "description": "Each library is its own WebDAV folder, with its own name, app passwords, quota and metadata library (say one per Zotero profile). Every WebDAV and library route takes library=<name> to pick one; without it they use the first.",
+        "operationId": "get_api_webdav_libraries",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "libraries": {
+                      "items": {
+                        "$ref": "#/components/schemas/WebDAVLibrary"
+                      },
+                      "type": "array"
+                    },
+                    "max_libraries": {
+                      "description": "How many you may have; 0 is no limit.",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "libraries",
+                    "max_libraries"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Your WebDAV libraries",
+        "tags": [
+          "WebDAV"
+        ]
+      },
+      "post": {
+        "description": "A new, empty WebDAV folder with its own name, app passwords and quota. 409 when the name is taken or you already have webdav.max_libraries_per_user.",
+        "operationId": "post_api_webdav_libraries",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "label": {
+                    "description": "What it is for: Work, Personal.",
+                    "maxLength": 60,
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Its WebDAV name: 2-32 lowercase letters, digits and -. It is also the user name its app passwords go with.",
+                    "maxLength": 32,
+                    "minLength": 2,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebDAVLibrary"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Make a WebDAV library",
+        "tags": [
+          "WebDAV"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/webdav/libraries/{library_id}/delete": {
+      "post": {
+        "description": "Its app passwords stop at once, its metadata goes, and its files are removed by the next WebDAV upkeep run. There is no undo. Your first library cannot be deleted (403).",
+        "operationId": "post_api_webdav_libraries_library_id_delete",
+        "parameters": [
+          {
+            "description": "The library's id, from GET /api/webdav/libraries.",
+            "in": "path",
+            "name": "library_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Delete a WebDAV library",
+        "tags": [
+          "WebDAV"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/webdav/libraries/{library_id}/label": {
+      "post": {
+        "operationId": "post_api_webdav_libraries_library_id_label",
+        "parameters": [
+          {
+            "description": "The library's id, from GET /api/webdav/libraries.",
+            "in": "path",
+            "name": "library_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "label": {
+                    "description": "What it is for. Empty clears it.",
+                    "maxLength": 60,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebDAVLibrary"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Label a WebDAV library",
+        "tags": [
+          "WebDAV"
+        ]
+      },
+      "x-feature": "webdav"
+    },
     "/api/webdav/name": {
       "post": {
         "description": "The name is the folder in your WebDAV address. Changing it moves no file, and the old address stops working at once, so every client needs the new one. 403 when an admin has locked your name (account.name_locked).",
         "operationId": "post_api_webdav_name",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -10706,7 +11373,18 @@
                       "description": "url without its scheme: what goes in Zotero's URL box, beside its http/https choice.",
                       "type": "string"
                     },
+                    "libraries": {
+                      "description": "All your WebDAV libraries, the first one first. account is the one this reply is about.",
+                      "items": {
+                        "$ref": "#/components/schemas/WebDAVLibrary"
+                      },
+                      "type": "array"
+                    },
                     "max_file_bytes": {
+                      "type": "integer"
+                    },
+                    "max_libraries": {
+                      "description": "How many libraries you may have; 0 is no limit.",
                       "type": "integer"
                     },
                     "scheme": {
@@ -10733,7 +11411,9 @@
                     "account",
                     "base_url",
                     "encrypt_at_rest",
+                    "libraries",
                     "max_file_bytes",
+                    "max_libraries",
                     "scheme"
                   ],
                   "type": "object"
@@ -10783,6 +11463,26 @@
       "get": {
         "operationId": "get_api_webdav_passwords",
         "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: every library's app passwords, not just library's.",
+            "in": "query",
+            "name": "all",
+            "schema": {
+              "enum": [
+                "true"
+              ],
+              "type": "string"
+            }
+          },
           {
             "description": "Rows to return. Default 200.",
             "in": "query",
@@ -10868,8 +11568,19 @@
         ]
       },
       "post": {
-        "description": "An app password signs a WebDAV client in to your folder, with your WebDAV name as the user name. It reaches WebDAV only, never this API. It is shown in this response only.",
+        "description": "An app password signs a WebDAV client in to one of your libraries (library, default your first), with that library's WebDAV name as the user name. It reaches that library only, and never this API. It is shown in this response only.",
         "operationId": "post_api_webdav_passwords",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -11183,6 +11894,15 @@
         "operationId": "get_api_webdav_trash",
         "parameters": [
           {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
             "description": "Rows to return. Default 200.",
             "in": "query",
             "name": "limit",
@@ -11272,6 +11992,17 @@
       "post": {
         "description": "It can be put back (POST /api/webdav/trash/{trash_id}/restore) until it is emptied, after webdav.trash_days. It counts against your quota until then. A WebDAV client's own deletes do not go through the trash.",
         "operationId": "post_api_webdav_trash",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -11358,6 +12089,15 @@
             "schema": {
               "maxLength": 64,
               "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           }
@@ -11447,6 +12187,15 @@
             "schema": {
               "maxLength": 64,
               "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           }

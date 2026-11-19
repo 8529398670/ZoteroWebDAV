@@ -14,12 +14,22 @@ const WebDAV = {
 
   async init( me ) {
     this.me = me;
+    Libraries.restore();
     let state;
     try {
       state = await Api.webdav();
     } catch ( error ) {
-      if ( error.status === 404 ) return;
-      throw error;
+      if ( error.status !== 404 ) throw error;
+      // A remembered library deleted since: back to the first one. Any other
+      // 404 is WebDAV switched off.
+      if ( !Api.library ) return;
+      Libraries.forget();
+      try {
+        state = await Api.webdav();
+      } catch ( retry ) {
+        if ( retry.status === 404 ) return;
+        throw retry;
+      }
     }
     Dom.show( Dom.get( "webdav-panel" ) , true );
     Library.init( me );
@@ -62,6 +72,7 @@ const WebDAV = {
   // form, usage, and the screens that need a name first.
   async render( state ) {
     this.state = state;
+    Libraries.render( state );
     const account = state.account;
     Dom.show( Dom.get( "webdav-claim" ) , account === null );
     Dom.show( Dom.get( "webdav-connect" ) , account !== null );

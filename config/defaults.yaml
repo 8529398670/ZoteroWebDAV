@@ -220,8 +220,9 @@ logs:
   echo: true                       # print a one-line summary of each request to stdout
 
 # Scheduled backups, written to <app_dir>/backups by the hourly job. They are
-# the same files `manage backup` makes: the database, config.yaml and storage/,
-# but never secret.key and never the activity log. The disk that holds the
+# the same files `manage backup` makes: the database, config.yaml and storage/
+# (and the WebDAV files with include_dav), but never secret.key and never the
+# activity log. The disk that holds the
 # data also holds these, so copy them somewhere else too. Only scheduled
 # backups are removed once there are more than keep; ones you make by hand
 # stay until you delete them. [live]
@@ -229,6 +230,10 @@ backups:
   enabled: true                    # [live]
   interval_hours: 24               # [live]
   keep: 7                          # [live]
+  # Also put the WebDAV files (<app_dir>/dav, every library's PDFs and zips)
+  # in scheduled backups. Off by default: they can be far larger than the
+  # rest. `manage backup -include-dav` does it for one made by hand. [live]
+  include_dav: false
 
 
 
@@ -302,6 +307,11 @@ webdav:
   # before it is removed for good. Deletes made by WebDAV clients are final,
   # as the protocol expects. [live]
   trash_days: 30
+
+  # How many WebDAV libraries one account may have, each its own folder,
+  # name, app passwords and quota (say one per Zotero profile). 0 means no
+  # limit. [live]
+  max_libraries_per_user: 3
 
   # Let the owner import a Zotero data folder (zotero.sqlite and storage/) on
   # the machine this server runs on, from the Import / Export screen. Always

@@ -51,11 +51,18 @@ WebDAV sync covers the personal library only.
   on the Free and Pro plans, and a Zotero attachment is one zip. If you have
   bigger attachments, use a DNS-only record with your own TLS (Caddy) for the
   WebDAV hostname.
-- **Backups.** `manage backup` and the scheduled backups cover the database
-  and `storage/`. They do not cover `dav/`, which is the files and can be
-  large. Back up `<data_dir>/dav/` separately (rsync, restic). If
-  `webdav.encrypt_at_rest` is on, those files can only be read with the
-  database that holds the WebDAV master key.
+- **Backups.** `manage backup` and the scheduled backups always cover the
+  database and `storage/`. The WebDAV files (`dav/`, every library) go in
+  too with `manage backup -include-dav`, or `backups.include_dav: true` for
+  the scheduled ones. It's off by default because they can be large. A backup
+  with files needs about as much free disk as the files take, plus
+  `webdav.min_free_mb`, and is refused otherwise. Restoring one puts the files
+  back (the old `dav/` is kept beside it as `dav.before-restore-<time>`).
+  Restoring one without files leaves the current `dav/` alone. If
+  `webdav.encrypt_at_rest` is on, the files can only be read with a database
+  from the same deployment, because it holds the WebDAV master key. For very
+  large libraries, an incremental copy of `<data_dir>/dav/` (rsync, restic)
+  is still the cheaper choice.
 
 ## What is enforced
 
