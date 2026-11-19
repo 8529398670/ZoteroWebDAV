@@ -447,6 +447,10 @@ type WebDAVConfig struct {
 	TrashDir          string
 	PublicURL         string
 	Prefix            string
+	// DirectPort is the port a browser on another machine reaches WebDAV on
+	// without a proxy: webdav.port, or docker.webdav_host_port in the
+	// container. The WebDAV screen uses it when public_url is empty.
+	DirectPort        int
 	EncryptAtRest     bool
 	MaxFileBytes      int64
 	DefaultQuotaBytes int64
@@ -500,6 +504,7 @@ func webdavConfig( file *File , app_dir string , host string ) ( result WebDAVCo
 		TrashDir:          filepath.Join( app_dir , WebDAVTrashDirName ),
 		PublicURL:         strings.TrimRight( section.PublicURL , "/" ),
 		Prefix:            section.Prefix,
+		DirectPort:        section.Port,
 		EncryptAtRest:     section.EncryptAtRest,
 		MaxFileBytes:      int64( section.MaxFileMB ) * 1024 * 1024,
 		DefaultQuotaBytes: int64( section.DefaultQuotaGB ) * 1024 * 1024 * 1024,
@@ -514,6 +519,7 @@ func webdavConfig( file *File , app_dir string , host string ) ( result WebDAVCo
 		ImportLocalPaths:  section.ImportLocalPaths && InContainer() == false,
 		ImportMaxBytes:    int64( section.ImportMaxMB ) * 1024 * 1024,
 	}
+	if InContainer() { result.DirectPort = file.Docker.WebDAVHostPort }
 	return
 }
 

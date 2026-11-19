@@ -256,9 +256,12 @@ webdav:
   # [restart]
   port: 35786
 
-  # The address WebDAV clients use, e.g. https://dav.example.com -- just the
-  # origin. Shown on the WebDAV screen to copy into Zotero. Empty shows
-  # http://<server.host>:<port>, which only this machine can reach. [live]
+  # Only for WebDAV on a different address than the web app, e.g.
+  # https://dav.example.com -- just the origin. Shown on the WebDAV screen to
+  # copy into Zotero. Empty: the WebDAV screen uses the scheme (http/https)
+  # and host the page was opened on, with prefix below in front of the name
+  # -- or, when the page was opened on a port of its own and prefix is
+  # empty, that host on this port. [live]
   public_url: ""
 
   # A path in front of the person's name, e.g. /dav for one hostname whose

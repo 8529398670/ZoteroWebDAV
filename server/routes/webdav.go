@@ -117,6 +117,9 @@ type webdavMeReply struct {
 	MaxFileBytes  int64             `json:"max_file_bytes"`
 	Libraries     []webdavLibraryRow `json:"libraries" jsonschema_description:"All your WebDAV libraries, the first one first. account is the one this reply is about."`
 	MaxLibraries  int               `json:"max_libraries" jsonschema_description:"How many libraries you may have; 0 is no limit."`
+	AutoURL       bool              `json:"auto_url" jsonschema_description:"true when webdav.public_url is empty: the WebDAV screen then builds the address from the page's own scheme and host, plus prefix (or direct_port when the page was opened on a port of its own)."`
+	Prefix        string            `json:"prefix" jsonschema_description:"webdav.prefix: the path in front of every WebDAV name, or empty."`
+	DirectPort    int               `json:"direct_port" jsonschema_description:"The port WebDAV listens on for clients that reach it without a proxy."`
 }
 
 // webdavLibraryRow is one library with its address.
@@ -155,7 +158,7 @@ func ( handlers *Handlers ) webdavAccountRow( account *models.DAVAccount ) ( row
 func ( handlers *Handlers ) webdavMe( user *models.User , account *models.DAVAccount ) ( reply *webdavMeReply , err error ) {
 	cfg := handlers.cfg()
 	base := cfg.WebDAV.BaseURL()
-	reply = &webdavMeReply{ BaseURL: base , EncryptAtRest: cfg.WebDAV.EncryptAtRest , MaxFileBytes: cfg.WebDAV.MaxFileBytes , Scheme: "http" , MaxLibraries: cfg.WebDAV.MaxLibraries , Libraries: []webdavLibraryRow{} }
+	reply = &webdavMeReply{ BaseURL: base , EncryptAtRest: cfg.WebDAV.EncryptAtRest , MaxFileBytes: cfg.WebDAV.MaxFileBytes , Scheme: "http" , MaxLibraries: cfg.WebDAV.MaxLibraries , Libraries: []webdavLibraryRow{} , AutoURL: cfg.WebDAV.PublicURL == "" , Prefix: cfg.WebDAV.Prefix , DirectPort: cfg.WebDAV.DirectPort }
 	if strings.HasPrefix( base , "https://" ) { reply.Scheme = "https" }
 	owned , err := models.ListDAVLibrariesForOwner( handlers.Store , user.ID )
 	if err != nil { return }

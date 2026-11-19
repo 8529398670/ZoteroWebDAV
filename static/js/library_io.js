@@ -7,6 +7,11 @@
 const LibraryIO = {
   formats: [],
   chunkBytes: 4 * 1024 * 1024,
+  // Pieces in flight at once: a slow link stays busy while each waits for
+  // its reply. The server writes each at its offset, in any order.
+  uploadsAtOnce: 3,
+  // Tries per piece; sending a piece again is harmless.
+  pieceTries: 3,
   polling: null,
 
   async init() {
@@ -112,11 +117,7 @@ const LibraryIO = {
     const format = Dom.get( "library-io-upload-format" ).value;
     try {
       const begun = await Api.importBegin( { format: format , mode: mode , name: file.name , size: file.size } );
-      const size = begun.chunk_bytes || this.chunkBytes;
-      for ( let offset = 0; offset < file.size; offset += size ) {
-        this.showUploading( file.name , offset / file.size );
-        await Api.importChunk( offset , file.slice( offset , Math.min( offset + size , file.size ) ) );
-      }
+      await this.uploadPieces( file , begun.chunk_bytes || this.chunkBytes );
       this.showUploading( file.name , 1 );
       this.show( await Api.importFinish() );
       input.value = "";
@@ -125,6 +126,46 @@ const LibraryIO = {
       App.showError( error.message );
       Dom.show( Dom.get( "library-io-progress" ) , false );
     }
+  },
+
+  // uploadPieces sends the file in pieces of size, a few at once, and
+  // throws the first error a piece still has after its tries.
+  async uploadPieces( file , size ) {
+    let next = 0;
+    let sent = 0;
+    this.showUploading( file.name , 0 );
+    const sendOne = async ( offset ) => {
+      const piece = file.slice( offset , Math.min( offset + size , file.size ) );
+      for ( let tried = 1; ; tried++ ) {
+        try {
+          await Api.importChunk( offset , piece );
+          break;
+        } catch ( error ) {
+          // A refusal (4xx) won't change on a second try; a dropped
+          // connection or a 5xx might.
+          const refused = error.status >= 400 && error.status < 500;
+          if ( refused || tried >= this.pieceTries ) throw error;
+        }
+      }
+      sent += piece.size;
+      this.showUploading( file.name , sent / file.size );
+    };
+    let failed = null;
+    const worker = async () => {
+      while ( failed === null && next < file.size ) {
+        const offset = next;
+        next += size;
+        try {
+          await sendOne( offset );
+        } catch ( error ) {
+          if ( failed === null ) failed = error;
+        }
+      }
+    };
+    const workers = [];
+    for ( let i = 0; i < this.uploadsAtOnce; i++ ) workers.push( worker() );
+    await Promise.all( workers );
+    if ( failed !== null ) throw failed;
   },
 
   async onLocal( event ) {

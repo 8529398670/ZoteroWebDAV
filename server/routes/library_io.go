@@ -31,7 +31,8 @@ import (
 //
 // An upload comes in pieces of ImportChunkBytes: the API's body limit and
 // read timeout are made for small JSON requests, and an export with its
-// files can be gigabytes. One import runs at a time per account, in the
+// files can be gigabytes. The page sends a few pieces at once, so they may
+// arrive in any order; each is written at its own offset. One import runs at a time per account, in the
 // background; the page polls its status.
 
 // ImportChunkBytes is the size of one upload piece. main.go lets bodies this
@@ -83,6 +84,7 @@ type pendingUpload struct {
 	mode     string
 	size     int64
 	received int64
+	pieces   map[int64]bool // the offsets of the pieces stored
 }
 
 var imports = struct {
@@ -212,7 +214,7 @@ func ( handlers *Handlers ) importBegin( c fiber.Ctx , in *importBeginRequest ) 
 	if mode == "" { mode = "merge" }
 	state.mu.Lock()
 	if state.upload != nil { os.Remove( state.upload.path ) }
-	state.upload = &pendingUpload{ path: file.Name() , name: in.Name , format: in.Format , mode: mode , size: in.Size }
+	state.upload = &pendingUpload{ path: file.Name() , name: in.Name , format: in.Format , mode: mode , size: in.Size , pieces: map[int64]bool{} }
 	state.mu.Unlock()
 	reply = &importBeginReply{ ChunkBytes: ImportChunkBytes }
 	return
@@ -220,7 +222,7 @@ func ( handlers *Handlers ) importBegin( c fiber.Ctx , in *importBeginRequest ) 
 
 type importChunkRequest struct {
 	libraryQuery
-	Offset int64 `json:"offset" query:"offset" jsonschema:"minimum=0" jsonschema_description:"Where this piece starts: the bytes sent so far." error:"offset must be 0 or more"`
+	Offset int64 `json:"offset" query:"offset" jsonschema:"minimum=0" jsonschema_description:"Where this piece starts: a multiple of chunk_bytes." error:"offset must be 0 or more"`
 }
 
 type importChunkReply struct {
@@ -231,8 +233,9 @@ type importChunkReply struct {
 //
 // @route("POST /api/library/import/chunk", summary="Send a piece of the export",
 //     tag="Library", feature="webdav", errors=(409,), body_type="application/octet-stream",
-//     description="The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not "
-//         "start where the last ended is refused with the offset expected.",
+//     description="The body is one piece starting at offset, a multiple of chunk_bytes. Every piece is "
+//         "chunk_bytes long but the last, which ends the file. Pieces may come in any order, a few at once; "
+//         "sending one again is harmless. received is the bytes stored so far.",
 // )
 func ( handlers *Handlers ) importChunk( c fiber.Ctx , in *importChunkRequest ) ( reply *importChunkReply , err error ) {
 	body := c.Body()
@@ -246,22 +249,32 @@ func ( handlers *Handlers ) importChunk( c fiber.Ctx , in *importChunkRequest ) 
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	upload := state.upload
-	switch {
-	case upload == nil:
+	if upload == nil {
 		err = refuse( fiber.StatusConflict , "no upload started" )
 		return
-	case in.Offset != upload.received:
-		err = refuse( fiber.StatusConflict , "that piece is out of order" , fiber.Map{ "received": upload.received } )
+	}
+	end := in.Offset + int64( len( body ) )
+	switch {
+	case in.Offset % ImportChunkBytes != 0:
+		err = refuse( fiber.StatusBadRequest , fmt.Sprintf( "a piece starts at a multiple of %d" , ImportChunkBytes ) )
 		return
-	case upload.received + int64( len( body ) ) > upload.size:
+	case end > upload.size:
 		err = refuse( fiber.StatusBadRequest , "more than the size given" )
 		return
+	case len( body ) != ImportChunkBytes && end != upload.size:
+		err = refuse( fiber.StatusBadRequest , fmt.Sprintf( "only the last piece may be shorter than %d bytes" , ImportChunkBytes ) )
+		return
 	}
-	file , err := os.OpenFile( upload.path , os.O_WRONLY | os.O_APPEND , 0o600 )
+	if upload.pieces[ in.Offset ] {
+		reply = &importChunkReply{ Received: upload.received }
+		return
+	}
+	file , err := os.OpenFile( upload.path , os.O_WRONLY , 0o600 )
 	if err != nil { return }
-	_ , err = file.Write( body )
+	_ , err = file.WriteAt( body , in.Offset )
 	if close_err := file.Close(); err == nil { err = close_err }
 	if err != nil { return }
+	upload.pieces[ in.Offset ] = true
 	upload.received += int64( len( body ) )
 	reply = &importChunkReply{ Received: upload.received }
 	return

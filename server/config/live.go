@@ -260,6 +260,7 @@ func liveConfig( boot *Config , boot_file *File , file *File ) ( next *Config ) 
 	dav := webdavConfig( file , boot.AppDir , boot.WebDAV.Host )
 	dav.Enabled = boot.WebDAV.Enabled
 	dav.Port = boot.WebDAV.Port
+	if InContainer() == false { dav.DirectPort = boot.WebDAV.Port }
 	next.WebDAV = dav
 	return
 }

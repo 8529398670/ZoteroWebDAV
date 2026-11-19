@@ -2422,7 +2422,7 @@ Then send the file in pieces to POST /api/library/import/chunk, and start the im
 
 Send a piece of the export
 
-The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not start where the last ended is refused with the offset expected.
+The body is one piece starting at offset, a multiple of chunk_bytes. Every piece is chunk_bytes long but the last, which ends the file. Pieces may come in any order, a few at once; sending one again is harmless. received is the bytes stored so far.
 
 |  |  |
 |---|---|
@@ -2434,7 +2434,7 @@ The body is the next piece, at most chunk_bytes, starting at offset. A piece tha
 | Name | In | Type | Required | Limits | Description |
 |---|---|---|---|---|---|
 | `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
-| `offset` | query | integer | no | at least 0 | Where this piece starts: the bytes sent so far. |
+| `offset` | query | integer | no | at least 0 | Where this piece starts: a multiple of chunk_bytes. |
 | `X-CSRF-Token` | header | string | no |  | From GET /api/me. Browser sessions only. |
 
 **Request body**
@@ -2769,12 +2769,15 @@ One of your WebDAV libraries (library, default your first): its name, the addres
 | Field | Type | Required | Limits | Description |
 |---|---|---|---|---|
 | `account` | [`WebDAVAccount`](#webdavaccount) or null | yes |  | null until you choose a WebDAV name. |
+| `auto_url` | boolean | yes |  | true when webdav.public_url is empty: the WebDAV screen then builds the address from the page's own scheme and host, plus prefix (or direct_port when the page was opened on a port of its own). |
 | `base_url` | string | yes |  | What every WebDAV address here starts with. |
+| `direct_port` | integer | yes |  | The port WebDAV listens on for clients that reach it without a proxy. |
 | `encrypt_at_rest` | boolean | yes |  |  |
 | `host_path` | string | no |  | url without its scheme: what goes in Zotero's URL box, beside its http/https choice. |
 | `libraries` | array of [`WebDAVLibrary`](#webdavlibrary) | yes |  | All your WebDAV libraries, the first one first. account is the one this reply is about. |
 | `max_file_bytes` | integer | yes |  |  |
 | `max_libraries` | integer | yes |  | How many libraries you may have; 0 is no limit. |
+| `prefix` | string | yes |  | webdav.prefix: the path in front of every WebDAV name, or empty. |
 | `scheme` | string | yes | one of `http`, `https` |  |
 | `suggested_name` | string | no |  | A name made from your display name, when you have none yet. |
 | `url` | string | no |  | Your folder: what to give a WebDAV client. Zotero adds /zotero/ itself. |
@@ -2954,12 +2957,15 @@ The name is the folder in your WebDAV address. Changing it moves no file, and th
 | Field | Type | Required | Limits | Description |
 |---|---|---|---|---|
 | `account` | [`WebDAVAccount`](#webdavaccount) or null | yes |  | null until you choose a WebDAV name. |
+| `auto_url` | boolean | yes |  | true when webdav.public_url is empty: the WebDAV screen then builds the address from the page's own scheme and host, plus prefix (or direct_port when the page was opened on a port of its own). |
 | `base_url` | string | yes |  | What every WebDAV address here starts with. |
+| `direct_port` | integer | yes |  | The port WebDAV listens on for clients that reach it without a proxy. |
 | `encrypt_at_rest` | boolean | yes |  |  |
 | `host_path` | string | no |  | url without its scheme: what goes in Zotero's URL box, beside its http/https choice. |
 | `libraries` | array of [`WebDAVLibrary`](#webdavlibrary) | yes |  | All your WebDAV libraries, the first one first. account is the one this reply is about. |
 | `max_file_bytes` | integer | yes |  |  |
 | `max_libraries` | integer | yes |  | How many libraries you may have; 0 is no limit. |
+| `prefix` | string | yes |  | webdav.prefix: the path in front of every WebDAV name, or empty. |
 | `scheme` | string | yes | one of `http`, `https` |  |
 | `suggested_name` | string | no |  | A name made from your display name, when you have none yet. |
 | `url` | string | no |  | Your folder: what to give a WebDAV client. Zotero adds /zotero/ itself. |

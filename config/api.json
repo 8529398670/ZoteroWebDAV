@@ -8793,7 +8793,7 @@
     },
     "/api/library/import/chunk": {
       "post": {
-        "description": "The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not start where the last ended is refused with the offset expected.",
+        "description": "The body is one piece starting at offset, a multiple of chunk_bytes. Every piece is chunk_bytes long but the last, which ends the file. Pieces may come in any order, a few at once; sending one again is harmless. received is the bytes stored so far.",
         "operationId": "post_api_library_import_chunk",
         "parameters": [
           {
@@ -8806,7 +8806,7 @@
             }
           },
           {
-            "description": "Where this piece starts: the bytes sent so far.",
+            "description": "Where this piece starts: a multiple of chunk_bytes.",
             "in": "query",
             "name": "offset",
             "schema": {
@@ -10942,9 +10942,17 @@
                         }
                       ]
                     },
+                    "auto_url": {
+                      "description": "true when webdav.public_url is empty: the WebDAV screen then builds the address from the page's own scheme and host, plus prefix (or direct_port when the page was opened on a port of its own).",
+                      "type": "boolean"
+                    },
                     "base_url": {
                       "description": "What every WebDAV address here starts with.",
                       "type": "string"
+                    },
+                    "direct_port": {
+                      "description": "The port WebDAV listens on for clients that reach it without a proxy.",
+                      "type": "integer"
                     },
                     "encrypt_at_rest": {
                       "type": "boolean"
@@ -10966,6 +10974,10 @@
                     "max_libraries": {
                       "description": "How many libraries you may have; 0 is no limit.",
                       "type": "integer"
+                    },
+                    "prefix": {
+                      "description": "webdav.prefix: the path in front of every WebDAV name, or empty.",
+                      "type": "string"
                     },
                     "scheme": {
                       "enum": [
@@ -10989,11 +11001,14 @@
                   },
                   "required": [
                     "account",
+                    "auto_url",
                     "base_url",
+                    "direct_port",
                     "encrypt_at_rest",
                     "libraries",
                     "max_file_bytes",
                     "max_libraries",
+                    "prefix",
                     "scheme"
                   ],
                   "type": "object"
@@ -11587,9 +11602,17 @@
                         }
                       ]
                     },
+                    "auto_url": {
+                      "description": "true when webdav.public_url is empty: the WebDAV screen then builds the address from the page's own scheme and host, plus prefix (or direct_port when the page was opened on a port of its own).",
+                      "type": "boolean"
+                    },
                     "base_url": {
                       "description": "What every WebDAV address here starts with.",
                       "type": "string"
+                    },
+                    "direct_port": {
+                      "description": "The port WebDAV listens on for clients that reach it without a proxy.",
+                      "type": "integer"
                     },
                     "encrypt_at_rest": {
                       "type": "boolean"
@@ -11611,6 +11634,10 @@
                     "max_libraries": {
                       "description": "How many libraries you may have; 0 is no limit.",
                       "type": "integer"
+                    },
+                    "prefix": {
+                      "description": "webdav.prefix: the path in front of every WebDAV name, or empty.",
+                      "type": "string"
                     },
                     "scheme": {
                       "enum": [
@@ -11634,11 +11661,14 @@
                   },
                   "required": [
                     "account",
+                    "auto_url",
                     "base_url",
+                    "direct_port",
                     "encrypt_at_rest",
                     "libraries",
                     "max_file_bytes",
                     "max_libraries",
+                    "prefix",
                     "scheme"
                   ],
                   "type": "object"

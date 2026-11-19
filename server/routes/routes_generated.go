@@ -543,7 +543,7 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.importBegin , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/library/import/chunk" , apidoc.Op{
 		Summary: "Send a piece of the export",
-		Description: "The body is the next piece, at most chunk_bytes, starting at offset. A piece that does not start where the last ended is refused with the offset expected.",
+		Description: "The body is one piece starting at offset, a multiple of chunk_bytes. Every piece is chunk_bytes long but the last, which ends the file. Pieces may come in any order, a few at once; sending one again is harmless. received is the bytes stored so far.",
 		Tag: "Library",
 		Feature: "webdav",
 		BodyType: "application/octet-stream",

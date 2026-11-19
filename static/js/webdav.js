@@ -88,9 +88,10 @@ const WebDAV = {
       return;
     }
     const username = Dom.get( "webdav-username" );
+    const address = this.address( state , account.name );
     const scheme = Dom.get( "webdav-scheme" );
-    Dom.swap( scheme , Dom.el( "option" , { text: state.scheme , attrs: { value: state.scheme } } ) );
-    Dom.get( "webdav-host-path" ).value = state.host_path;
+    Dom.swap( scheme , Dom.el( "option" , { text: address.scheme , attrs: { value: address.scheme } } ) );
+    Dom.get( "webdav-host-path" ).value = address.host_path;
     username.value = account.name;
     // An admin can stop you changing it: then it is only there to copy.
     username.readOnly = account.name_locked;
@@ -102,6 +103,20 @@ const WebDAV = {
     this.showUsage( account );
     Files.init();
     await Promise.all( [ this.refreshPasswords() , Trash.init() ] );
+  },
+
+  // What goes in Zotero's protocol and URL boxes. webdav.public_url, when
+  // set, is the address (WebDAV on a host of its own). Without it, WebDAV is
+  // where this page is: the same scheme and host, with webdav.prefix in
+  // front of the name. A page opened on a port of its own (no proxy in
+  // front) means WebDAV is on its own port of the same host.
+  address( state , name ) {
+    if ( !state.auto_url ) return { scheme: state.scheme , host_path: state.host_path };
+    const location = window.location;
+    const scheme = location.protocol.replace( /:$/ , "" );
+    let host = location.host;
+    if ( state.prefix === "" && location.port !== "" && state.direct_port ) host = location.hostname + ":" + state.direct_port;
+    return { scheme , host_path: host + state.prefix + "/" + name };
   },
 
   showUsage( account ) {

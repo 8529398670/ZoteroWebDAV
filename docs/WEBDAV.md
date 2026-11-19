@@ -43,8 +43,12 @@ WebDAV sync covers the personal library only.
     - service: http_status:404
   ```
 
-- **`webdav.public_url`.** Set it to the address people use, so the WebDAV
-  screen shows the right thing to copy.
+- **`webdav.public_url`.** Leave it empty when WebDAV is on the web app's
+  hostname (`webdav.prefix: /dav`): the WebDAV screen takes the scheme
+  (http/https) and host from the page it was opened on. Opened directly on
+  `server.port` with no prefix, it shows the same host on the WebDAV port.
+  Set it only when WebDAV has a hostname of its own, e.g.
+  `https://dav.example.com`.
 - **TLS.** Basic auth sends the app password with every request. Use HTTPS
   only.
 - **Cloudflare's 100 MB limit.** Its proxy refuses request bodies over 100 MB
