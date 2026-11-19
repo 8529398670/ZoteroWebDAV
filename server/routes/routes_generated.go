@@ -479,6 +479,14 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 403 , 404 },
 	} , handlers.checkAttachments , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/attachments/upload" , apidoc.Op{
+		Summary: "Upload an attachment's file",
+		Description: "Stores the file of an attachment item, in pieces: each starts at offset, a multiple of chunk_bytes, and all but the last are chunk_bytes long. When the last piece arrives the file is stored in your WebDAV folder as Zotero's sync stores it (zotero/<KEY>.zip and .prop), and the item becomes an imported_file named filename: an attachment that linked to a file elsewhere now syncs it to every client.",
+		Tag: "Library",
+		Feature: "webdav",
+		BodyType: "application/octet-stream",
+		Errors: []int{ 400 , 401 , 403 , 404 , 409 },
+	} , handlers.uploadAttachment , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.MountStream( app , "GET" , "/api/library/attachments/{item_key}/file" , apidoc.Op{
 		Summary: "One attachment's file",
 		Description: "Streams a file out of zotero/<KEY>.zip in your WebDAV folder, with nothing unpacked on disk: the main file (the item's filename, the only file, or the largest), or the one name says.",
@@ -506,6 +514,13 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 404 },
 	} , handlers.listLibraryCollections , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "POST" , "/api/library/collections/move" , apidoc.Op{
+		Summary: "Move collections to other keys",
+		Description: "Up to 1000 moves, all in one transaction, as POST /api/library/items/move does for items. Each takes a collection to a new key, points its subcollections at it, lists the new key in every item filed in it, and leaves a tombstone under the old key. A move whose old key is not a live collection, or whose new key is taken, is refused and the rest still go.",
+		Tag: "Library",
+		Feature: "webdav",
+		Errors: []int{ 400 , 401 , 403 , 404 },
+	} , handlers.moveLibraryCollections , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/library/collections/{collection_key}" , apidoc.Op{
 		Summary: "Store a collection",
 		Description: "Creates or replaces one collection: Zotero's JSON for it under data. POST /api/bulk/library/collections takes up to 100.",

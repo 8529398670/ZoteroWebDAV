@@ -1973,10 +1973,12 @@ Can the server do real work
 | POST | [`/api/bulk/library/items/delete`](#post-apibulklibraryitemsdelete) | Delete an item, for many at once | browser session or API key, anyone signed in |
 | GET | [`/api/library/attachments`](#get-apilibraryattachments) | Your attachment files | browser session or API key, anyone signed in |
 | POST | [`/api/library/attachments/check`](#post-apilibraryattachmentscheck) | Which attachment files are missing | browser session or API key, anyone signed in |
+| POST | [`/api/library/attachments/upload`](#post-apilibraryattachmentsupload) | Upload an attachment's file | browser session or API key, anyone signed in |
 | GET | [`/api/library/attachments/{item_key}/file`](#get-apilibraryattachmentsitem_keyfile) | One attachment's file | browser session or API key, anyone signed in |
 | GET | [`/api/library/attachments/{item_key}/files`](#get-apilibraryattachmentsitem_keyfiles) | The files in one attachment | browser session or API key, anyone signed in |
 | GET | [`/api/library/changes`](#get-apilibrarychanges) | What changed in your library | browser session or API key, anyone signed in |
 | GET | [`/api/library/collections`](#get-apilibrarycollections) | Your collections | browser session or API key, anyone signed in |
+| POST | [`/api/library/collections/move`](#post-apilibrarycollectionsmove) | Move collections to other keys | browser session or API key, anyone signed in |
 | POST | [`/api/library/collections/{collection_key}`](#post-apilibrarycollectionscollection_key) | Store a collection | browser session or API key, anyone signed in |
 | POST | [`/api/library/collections/{collection_key}/delete`](#post-apilibrarycollectionscollection_keydelete) | Delete a collection | browser session or API key, anyone signed in |
 | GET | [`/api/library/export`](#get-apilibraryexport) | Export your library | browser session or API key, anyone signed in |
@@ -2166,6 +2168,41 @@ For up to 1000 keys, whether your WebDAV folder has each attachment's file. A fi
 | `missing` | array of string | yes |  | No complete file: copy it (the .zip, then the .prop). |
 | `present` | array of string | yes |  | The .zip and .prop are there, with the md5 you gave if you gave one. |
 
+### POST /api/library/attachments/upload
+
+Upload an attachment's file
+
+Stores the file of an attachment item, in pieces: each starts at offset, a multiple of chunk_bytes, and all but the last are chunk_bytes long. When the last piece arrives the file is stored in your WebDAV folder as Zotero's sync stores it (zotero/<KEY>.zip and .prop), and the item becomes an imported_file named filename: an attachment that linked to a file elsewhere now syncs it to every client.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 409, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+| `key` | query | string | no | 8 to 8 characters | The attachment item's key. |
+| `filename` | query | string | no | 1 to 255 characters | The file's name, without folders. |
+| `size` | query | integer | no | at least 1 | The whole file's size in bytes. |
+| `offset` | query | integer | no | at least 0 | Where this piece starts: a multiple of chunk_bytes (GET /api/library/formats). Offset 0 starts the upload over. |
+| `mtime` | query | integer | no | at least 0 | The file's modification time, in milliseconds since 1970. Default: now. |
+| `X-CSRF-Token` | header | string | no |  | From GET /api/me. Browser sessions only. |
+
+**Request body**
+
+Raw bytes, as `application/octet-stream`.
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `done` | boolean | yes |  | The whole file arrived and is stored; the item is an imported file now. |
+| `md5` | string | no |  |  |
+| `received` | integer | yes |  |  |
+
 ### GET /api/library/attachments/{item_key}/file
 
 One attachment's file
@@ -2276,6 +2313,46 @@ Your collections
 | `records` | array of [`LibraryRecord`](#libraryrecord) | yes |  |  |
 | `rev` | integer | yes |  | Your library's last change number. |
 | `total` | integer | yes |  |  |
+
+### POST /api/library/collections/move
+
+Move collections to other keys
+
+Up to 1000 moves, all in one transaction, as POST /api/library/items/move does for items. Each takes a collection to a new key, points its subcollections at it, lists the new key in every item filed in it, and leaves a tombstone under the old key. A move whose old key is not a live collection, or whose new key is taken, is refused and the rest still go.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 429, 503 |
+
+**Parameters**
+
+| Name | In | Type | Required | Limits | Description |
+|---|---|---|---|---|---|
+| `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `collections` | array of object | yes |  |  |
+| `collections[].from` | string | yes | 8 to 8 characters | The collection's key now. |
+| `collections[].set` | object | no |  | Fields of its Zotero JSON to set. key and parentCollection are left alone. |
+| `collections[].to` | string | no | at most 8 characters | Its new key. Absent or the same: only set fields. |
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `dry_run` | boolean | no |  | Say what would happen and change nothing. |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `dry_run` | boolean | yes |  |  |
+| `results` | array of object | yes |  |  |
+| `results[].children` | integer | yes |  | Subcollections and items filed in it, now pointing at the new key. |
+| `results[].error` | string | no |  |  |
+| `results[].from` | string | yes |  |  |
+| `results[].status` | string | yes | one of `moved`, `set`, `unchanged`, `refused` |  |
+| `results[].to` | string | yes |  |  |
 
 ### POST /api/library/collections/{collection_key}
 

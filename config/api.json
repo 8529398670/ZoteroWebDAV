@@ -7827,6 +7827,151 @@
       },
       "x-feature": "webdav"
     },
+    "/api/library/attachments/upload": {
+      "post": {
+        "description": "Stores the file of an attachment item, in pieces: each starts at offset, a multiple of chunk_bytes, and all but the last are chunk_bytes long. When the last piece arrives the file is stored in your WebDAV folder as Zotero's sync stores it (zotero/<KEY>.zip and .prop), and the item becomes an imported_file named filename: an attachment that linked to a file elsewhere now syncs it to every client.",
+        "operationId": "post_api_library_attachments_upload",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The attachment item's key.",
+            "in": "query",
+            "name": "key",
+            "schema": {
+              "maxLength": 8,
+              "minLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The file's name, without folders.",
+            "in": "query",
+            "name": "filename",
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The whole file's size in bytes.",
+            "in": "query",
+            "name": "size",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Where this piece starts: a multiple of chunk_bytes (GET /api/library/formats). Offset 0 starts the upload over.",
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "The file's modification time, in milliseconds since 1970. Default: now.",
+            "in": "query",
+            "name": "mtime",
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "From GET /api/me. Browser sessions only.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "done": {
+                      "description": "The whole file arrived and is stored; the item is an imported file now.",
+                      "type": "boolean"
+                    },
+                    "md5": {
+                      "type": "string"
+                    },
+                    "received": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "done",
+                    "received"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Upload an attachment's file",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
     "/api/library/attachments/{item_key}/file": {
       "get": {
         "description": "Streams a file out of zotero/<KEY>.zip in your WebDAV folder, with nothing unpacked on disk: the main file (the item's filename, the only file, or the largest), or the one name says.",
@@ -8286,6 +8431,163 @@
           }
         ],
         "summary": "Your collections",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/collections/move": {
+      "post": {
+        "description": "Up to 1000 moves, all in one transaction, as POST /api/library/items/move does for items. Each takes a collection to a new key, points its subcollections at it, lists the new key in every item filed in it, and leaves a tombstone under the old key. A move whose old key is not a live collection, or whose new key is taken, is refused and the rest still go.",
+        "operationId": "post_api_library_collections_move",
+        "parameters": [
+          {
+            "description": "Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one.",
+            "in": "query",
+            "name": "library",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "collections": {
+                    "items": {
+                      "properties": {
+                        "from": {
+                          "description": "The collection's key now.",
+                          "maxLength": 8,
+                          "minLength": 8,
+                          "type": "string"
+                        },
+                        "set": {
+                          "description": "Fields of its Zotero JSON to set. key and parentCollection are left alone.",
+                          "type": "object"
+                        },
+                        "to": {
+                          "description": "Its new key. Absent or the same: only set fields.",
+                          "maxLength": 8,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 1000,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "dry_run": {
+                    "description": "Say what would happen and change nothing.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "collections"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "dry_run": {
+                      "type": "boolean"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "children": {
+                            "description": "Subcollections and items filed in it, now pointing at the new key.",
+                            "type": "integer"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "enum": [
+                              "moved",
+                              "set",
+                              "unchanged",
+                              "refused"
+                            ],
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "children",
+                          "from",
+                          "status",
+                          "to"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "dry_run",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Move collections to other keys",
         "tags": [
           "Library"
         ]

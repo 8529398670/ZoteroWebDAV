@@ -297,7 +297,7 @@ func run() ( err error ) {
 	app.Use( middleware.Recover( settings ) )
 	app.Use( middleware.SecurityHeaders( settings ) )
 	app.Use( middleware.RateLimit( settings , logger ) )
-	app.Use( middleware.BodyLimit( settings , map[string]int{ routes.ImportChunkPath: routes.ImportChunkBytes + 64 * 1024 } ) )
+	app.Use( middleware.BodyLimit( settings , map[string]int{ routes.ImportChunkPath: routes.ImportChunkBytes + 64 * 1024 , routes.AttachmentUploadPath: routes.ImportChunkBytes + 64 * 1024 } ) )
 	app.Use( middleware.RequestLog( logger ) )
 
 	handlers.Register( app )
