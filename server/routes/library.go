@@ -9,8 +9,10 @@ import (
 
 	fiber "github.com/gofiber/fiber/v3"
 
+	apidoc "zoterowebdav/server/apidoc"
 	db "zoterowebdav/server/db"
 	models "zoterowebdav/server/models"
+	zotio "zoterowebdav/server/zotio"
 )
 
 // The library API: the metadata that goes with the files in your WebDAV
@@ -83,6 +85,7 @@ type libraryRow struct {
 	ContentType string    `json:"content_type,omitempty"`
 	HasFile     bool      `json:"has_file,omitempty" jsonschema_description:"Whether your WebDAV folder has the file: an attachment's own zotero/<KEY>.zip, or for a regular item one of its attachments'."`
 	FileKey     string    `json:"file_key,omitempty" jsonschema_description:"The attachment key whose file to fetch (GET /api/library/attachments/{file_key}/file): the item's own, or its first attachment with a file, a PDF first."`
+	FileType    string    `json:"file_type,omitempty" jsonschema_description:"The content type of file_key's attachment, as its item says: application/pdf for a PDF."`
 }
 
 func ( libraryRow ) APIName() ( name string ) { name = "LibraryRecord"; return }
@@ -184,12 +187,59 @@ func ( handlers *Handlers ) deleteLibrary( c fiber.Ctx , library string , kind s
 // @route("POST /api/library/items/{item_key}/delete", summary="Delete an item",
 //     tag="Library", feature="webdav", errors=(404,),
 //     description="The item becomes a tombstone, which GET /api/library/changes hands out for "
-//         "webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder.",
+//         "webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder. "
+//         "children=true deletes its attachments and notes with it and answers what was removed.",
 //     bulk=True,
 // )
-func ( handlers *Handlers ) deleteLibraryItem( c fiber.Ctx , in *itemKeyPath ) ( reply *libraryPutReply , err error ) {
-	reply , err = handlers.deleteLibrary( c , in.Library , models.LibraryKindItem , in.ItemKey )
+func ( handlers *Handlers ) deleteLibraryItem( c fiber.Ctx , in *deleteItemRequest ) ( reply *deleteItemReply , err error ) {
+	if in.Children != "true" {
+		put , delete_err := handlers.deleteLibrary( c , in.Library , models.LibraryKindItem , in.ItemKey )
+		if delete_err != nil {
+			err = delete_err
+			return
+		}
+		reply = &deleteItemReply{ libraryPutReply: *put }
+		return
+	}
+	library_id , err := handlers.libraryOf( c , in.Library )
+	if err != nil { return }
+	removed , delete_err := models.DeleteLibraryItemTree( handlers.Store , library_id , in.ItemKey )
+	switch {
+	case errors.Is( delete_err , db.ErrNotFound ):
+		err = refuse( fiber.StatusNotFound , "no such item" )
+		return
+	case delete_err != nil:
+		err = delete_err
+		return
+	}
+	reply = &deleteItemReply{ libraryPutReply: libraryPutReply{ Key: in.ItemKey , Changed: true } , Removed: []removedRecord{} }
+	for _ , record := range removed {
+		built := removedRecord{ Key: record.Key , Version: record.Version }
+		if len( record.Data ) > 0 {
+			if err = json.Unmarshal( record.Data , &built.Data ); err != nil { return }
+		}
+		reply.Removed = append( reply.Removed , built )
+	}
+	if stored , get_err := models.GetLibraryRecord( handlers.Store , library_id , models.LibraryKindItem , in.ItemKey ); get_err == nil {
+		reply.Rev = stored.Rev
+	}
 	return
+}
+
+type deleteItemRequest struct {
+	itemKeyPath
+	Children string `json:"children,omitempty" query:"children" jsonschema:"enum=true" jsonschema_description:"true deletes its child items (attachments and notes) with it, as Zotero does, and answers removed."`
+}
+
+type removedRecord struct {
+	Key     string         `json:"key"`
+	Version int64          `json:"version"`
+	Data    map[string]any `json:"data,omitempty"`
+}
+
+type deleteItemReply struct {
+	libraryPutReply
+	Removed []removedRecord `json:"removed,omitempty" jsonschema_description:"With children=true: every item deleted, the item first, as it was, so it can be put back with POST /api/bulk/library/items."`
 }
 
 // deleteLibraryCollection leaves a tombstone too.
@@ -261,7 +311,9 @@ func ( handlers *Handlers ) listLibrary( c fiber.Ctx , kind string , in *listLib
 	// A paper's file is on its child attachment item: the parent points at
 	// the first child with a file, a PDF before anything else.
 	child_file := map[string]string{}
+	types := map[string]string{}
 	for _ , record := range records {
+		types[ record.Key ] = record.ContentType
 		if record.ParentKey == "" || files[ record.Key ] == false { continue }
 		current , found := child_file[ record.ParentKey ]
 		if found == false || ( record.ContentType == "application/pdf" && current == "" ) {
@@ -277,6 +329,7 @@ func ( handlers *Handlers ) listLibrary( c fiber.Ctx , kind string , in *listLib
 		} else if key := child_file[ record.Key ]; key != "" {
 			row.HasFile , row.FileKey = true , key
 		}
+		if row.HasFile { row.FileType = types[ row.FileKey ] }
 		rows = append( rows , row )
 	}
 	rows = matchRows( rows , in.Q , "title" , "creators" , "year" , "doi" , "key" )
@@ -499,7 +552,8 @@ func ( handlers *Handlers ) listAttachmentFiles( c fiber.Ctx , in *itemKeyPath )
 
 type attachmentFileRequest struct {
 	itemKeyPath
-	Name string `json:"name,omitempty" query:"name" jsonschema:"maxLength=1024" jsonschema_description:"Which file in the zip. Default: the main one." error:"name must be at most 1024 characters"`
+	Name   string `json:"name,omitempty" query:"name" jsonschema:"maxLength=1024" jsonschema_description:"Which file in the zip. Default: the main one." error:"name must be at most 1024 characters"`
+	Inline string `json:"inline,omitempty" query:"inline" jsonschema:"enum=true" jsonschema_description:"true shows a PDF in the browser instead of downloading it. Other files still download."`
 }
 
 // getAttachmentFile streams one file out of an attachment's zip,
@@ -526,7 +580,33 @@ func ( handlers *Handlers ) getAttachmentFile( c fiber.Ctx , in *attachmentFileR
 		err = refuse( fiber.StatusNotFound , "no such file in that attachment" )
 		return
 	}
-	err = sendDownload( c , &closeBoth{ reader: reader , also: attachment } , size , baseName( name ) , time.Time{} )
+	stream := &closeBoth{ reader: reader , also: attachment }
+	if in.Inline == "true" && strings.HasSuffix( strings.ToLower( name ) , ".pdf" ) {
+		err = sendInlinePDF( c , stream , size , baseName( name ) )
+		return
+	}
+	err = sendDownload( c , stream , size , baseName( name ) , time.Time{} )
+	return
+}
+
+// sendInlinePDF lets the browser show a PDF in its own viewer. Only a PDF:
+// any other file (an HTML snapshot, say) would run on this origin, so it
+// downloads. Chrome's viewer draws the PDF in a frame of the document, and
+// any Content-Security-Policy on it (even frame-ancestors alone),
+// X-Frame-Options, or the cross-origin isolation headers leave the page blank,
+// so this response drops the ones every other response carries. What keeps it safe is the type: application/pdf
+// with nosniff is never read as HTML, and the viewer runs apart from the page.
+var inlinePDFDropped = []string{
+	"Content-Security-Policy" , fiber.HeaderXFrameOptions ,
+	"Cross-Origin-Embedder-Policy" , "Cross-Origin-Resource-Policy" , "Cross-Origin-Opener-Policy" ,
+}
+
+func sendInlinePDF( c fiber.Ctx , reader io.ReadCloser , size int64 , name string ) ( err error ) {
+	for _ , header := range inlinePDFDropped { c.Response().Header.Del( header ) }
+	c.Set( fiber.HeaderContentType , "application/pdf" )
+	c.Set( fiber.HeaderContentDisposition , "inline" + strings.TrimPrefix( contentDisposition( name ) , "attachment" ) )
+	c.Set( "X-Content-Type-Options" , "nosniff" )
+	err = c.SendStream( reader , int( size ) )
 	return
 }
 
@@ -548,5 +628,25 @@ func ( both *closeBoth ) Close() ( err error ) {
 
 func baseName( name string ) ( base string ) {
 	base = name[ strings.LastIndex( name , "/" ) + 1: ]
+	return
+}
+
+// ---------------------------------------------------------------------------
+// schema
+// ---------------------------------------------------------------------------
+
+type librarySchemaReply struct {
+	ItemTypes    map[string][]string `json:"item_types" jsonschema_description:"Each Zotero item type's fields, in Zotero's order."`
+	CreatorTypes map[string][]string `json:"creator_types" jsonschema_description:"Each item type's creator types, the main one first."`
+}
+
+// getLibrarySchema is Zotero's item types, their fields and creator types,
+// for a screen that edits items.
+//
+// @route("GET /api/library/schema", summary="Zotero's item fields",
+//     tag="Library", feature="webdav",
+// )
+func ( handlers *Handlers ) getLibrarySchema( c fiber.Ctx , in *apidoc.None ) ( reply *librarySchemaReply , err error ) {
+	reply = &librarySchemaReply{ ItemTypes: zotio.TypeFields() , CreatorTypes: zotio.CreatorTypes() }
 	return
 }

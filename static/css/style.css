@@ -807,3 +807,9 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   --wb-header-height: 28px;
 }
 .files-tree .wb-col.text-end { justify-content: flex-end; text-align: end; }
+
+/* The Library table: a row opens its editor, the first column picks it. */
+.library-table tbody tr[data-key] { cursor: pointer; }
+.library-table .library-check { width: 2.5rem; }
+.library-select-slot { min-height: calc(1.5em + 0.5rem + 2px); display: flex; align-items: center; }
+.library-select-slot > .row { flex: 1; }

@@ -169,6 +169,25 @@
             </div>
           </section>
 
+          <!-- How the Library screen opens files. Only while WebDAV is on; see library.js. -->
+          <section class="card" id="library-open-panel" hidden>
+            <div class="card-body">
+              <h3 class="card-title" data-i18n="library.open_heading"></h3>
+              <div class="row g-2 align-items-center">
+                <div class="col-12 col-md-auto">
+                  <label for="library-open-mode" class="col-form-label" data-i18n="library.open_label"></label>
+                </div>
+                <div class="col-12 col-md col-xxl-5">
+                  <select id="library-open-mode" class="form-select" aria-describedby="library-open-help">
+                    <option value="tab" data-i18n="library.open_tab"></option>
+                    <option value="download" data-i18n="library.open_download"></option>
+                  </select>
+                </div>
+              </div>
+              <div id="library-open-help" class="form-text" data-i18n="library.open_help"></div>
+            </div>
+          </section>
+
           <!-- A login link for your own account, to sign in on another device.
                Any signed-in user may mint one; see Api.createMyLoginLink. -->
           <section class="card">
@@ -686,10 +705,25 @@
                   </div>
                 </div>
               </div>
+              <!-- The hint, or while rows are picked the bar that acts on them, in
+                   one slot so the table does not move: see Library.paintSelection. -->
+              <div class="library-select-slot mt-2">
+              <p id="library-select-hint" class="form-text my-0" data-i18n="library.select_hint"></p>
+              <div id="library-selection" class="row g-2 align-items-center" hidden>
+                <div class="col-auto"><span id="library-selection-count" class="fw-semibold" aria-live="polite"></span></div>
+                <div class="col-auto">
+                  <button id="library-delete" type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i><span data-i18n="library.delete_button"></span></button>
+                </div>
+                <div class="col-auto">
+                  <button id="library-clear" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="library.clear_button"></button>
+                </div>
+              </div>
+              </div>
               <div class="table-responsive mt-3">
-                <table id="library-table" class="table table-hover align-middle mb-0" data-empty="library.empty">
+                <table id="library-table" class="table table-hover align-middle mb-0 library-table" data-empty="library.empty">
                   <thead>
                     <tr>
+                      <th scope="col" class="library-check"><input id="library-select-all" class="form-check-input" type="checkbox" data-i18n-attr="aria-label:library.select_all" /></th>
                       <th scope="col" data-sort="title"><button type="button" class="th-sort" data-i18n="library.table_title"></button></th>
                       <th scope="col" data-sort="creators"><button type="button" class="th-sort" data-i18n="library.table_creators"></button></th>
                       <th scope="col" data-sort="year"><button type="button" class="th-sort" data-i18n="library.table_year"></button></th>
@@ -1247,6 +1281,50 @@
         <div class="modal-footer">
           <a id="shortcuts-list-change" href="#shortcuts" class="btn btn-link" data-i18n="shortcuts.list_change" hidden></a>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The Library's item editor: see Library.edit, which fills it in. -->
+  <div id="library-edit-modal" class="modal fade" tabindex="-1" aria-labelledby="library-edit-title" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+      <div class="modal-content">
+        <form id="library-edit-form" class="d-flex flex-column h-100 overflow-hidden" autocomplete="off">
+          <div class="modal-header">
+            <div>
+              <h2 id="library-edit-title" class="modal-title fs-5" data-i18n="library.edit_title"></h2>
+              <div id="library-edit-key" class="small text-body-secondary font-monospace"></div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" data-i18n-attr="aria-label:nav.close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <label for="library-edit-type" class="form-label" data-i18n="library.edit_type"></label>
+                <select id="library-edit-type" class="form-select"></select>
+              </div>
+              <div class="col-12" id="library-edit-creators-block">
+                <div class="form-label" data-i18n="library.edit_creators"></div>
+                <div id="library-edit-creators" class="vstack gap-2"></div>
+                <button id="library-edit-add-creator" type="button" class="btn btn-sm btn-outline-secondary mt-2"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i><span data-i18n="library.edit_add_creator"></span></button>
+              </div>
+            </div>
+            <div id="library-edit-fields" class="row g-3 mt-0"></div>
+            <div class="row g-3 mt-0" id="library-edit-tags-block">
+              <div class="col-12">
+                <label for="library-edit-tags" class="form-label" data-i18n="library.edit_tags"></label>
+                <input id="library-edit-tags" class="form-control" aria-describedby="library-edit-tags-help" />
+                <div id="library-edit-tags-help" class="form-text" data-i18n="library.edit_tags_help"></div>
+              </div>
+            </div>
+            <p class="form-text mt-3 mb-0" data-i18n="library.edit_note"></p>
+            <div id="library-edit-problem" class="alert alert-danger mt-3 mb-0" role="alert" hidden></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="ui.cancel"></button>
+            <button id="library-edit-save" type="submit" class="btn btn-primary" data-i18n="ui.save"></button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

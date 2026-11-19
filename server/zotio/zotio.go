@@ -450,3 +450,25 @@ func textToHTML( text string ) ( html string ) {
 	html = "<p>" + strings.ReplaceAll( escaped , "\n" , "<br/>" ) + "</p>"
 	return
 }
+
+// TypeFields is a copy of every regular item type's fields, in Zotero's
+// order, for a screen that edits items. Attachments and notes, which Zotero's
+// schema keeps apart, get the fields their JSON carries.
+func TypeFields() ( result map[string][]string ) {
+	result = make( map[string][]string , len( typeFields ) + 2 )
+	for item_type , fields := range typeFields {
+		result[ item_type ] = append( []string{} , fields... )
+	}
+	result[ "attachment" ] = []string{ "title" , "filename" , "contentType" , "url" , "accessDate" }
+	result[ "note" ] = []string{ "note" }
+	return
+}
+
+// CreatorTypes is a copy of each item type's creator types, its main one first.
+func CreatorTypes() ( result map[string][]string ) {
+	result = make( map[string][]string , len( creatorTypes ) )
+	for item_type , types := range creatorTypes {
+		result[ item_type ] = append( []string{} , types... )
+	}
+	return
+}

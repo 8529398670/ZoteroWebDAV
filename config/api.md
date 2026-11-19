@@ -43,6 +43,7 @@ An error reply is a JSON object whose `error` says what went wrong.
 
 | Method | Path | Summary | Who may call |
 |---|---|---|---|
+| POST | [`/api/account/library-open`](#post-apiaccountlibrary-open) | How the Library opens files | browser session or API key, anyone signed in |
 | POST | [`/api/account/login-link`](#post-apiaccountlogin-link) | A login link for yourself | browser session or API key, anyone signed in |
 | POST | [`/api/account/login-link/cancel`](#post-apiaccountlogin-linkcancel) | Stop your own login link working | browser session or API key, anyone signed in |
 | POST | [`/api/account/rename`](#post-apiaccountrename) | Rename your account | browser session or API key, anyone signed in |
@@ -62,6 +63,31 @@ An error reply is a JSON object whose `error` says what went wrong.
 | POST | [`/api/logs/events`](#post-apilogsevents) | Record what happened on the page | browser session or API key, anyone signed in |
 | GET | [`/api/me`](#get-apime) | Who am I | browser session or API key, anyone signed in |
 | GET | [`/api/team`](#get-apiteam) | List team | browser session or API key, anyone signed in |
+
+### POST /api/account/library-open
+
+How the Library opens files
+
+tab shows a PDF in a new browser tab (other files still download); download always saves the file.
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 400, 401, 403, 404, 429, 503 |
+
+**Request body**
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
+| `mode` | string | yes | one of `tab`, `download` | tab shows a PDF in a new tab; download saves the file. |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `mode` | string | yes |  |  |
+| `ok` | boolean | yes |  |  |
 
 ### POST /api/account/login-link
 
@@ -1964,6 +1990,7 @@ Can the server do real work
 | GET | [`/api/library/items/{item_key}`](#get-apilibraryitemsitem_key) | One item | browser session or API key, anyone signed in |
 | POST | [`/api/library/items/{item_key}`](#post-apilibraryitemsitem_key) | Store an item | browser session or API key, anyone signed in |
 | POST | [`/api/library/items/{item_key}/delete`](#post-apilibraryitemsitem_keydelete) | Delete an item | browser session or API key, anyone signed in |
+| GET | [`/api/library/schema`](#get-apilibraryschema) | Zotero's item fields | browser session or API key, anyone signed in |
 
 ### POST /api/bulk/library/collections
 
@@ -2065,6 +2092,7 @@ Runs POST /api/library/items/{item_key}/delete once per item: items holds each o
 |---|---|---|---|---|
 | `csrf_token` | string | no |  | From GET /api/me. Browser sessions only. |
 | `items` | array of object | yes |  | One entry per thing to change: its id, and any field that differs from shared. |
+| `items[].children` | string | no | one of `true` | true deletes its child items (attachments and notes) with it, as Zotero does, and answers removed. |
 | `items[].item_key` | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
 | `items[].library` | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `shared` | object | no |  | Fields every item gets, unless the item sets its own. |
@@ -2152,6 +2180,7 @@ Streams a file out of zotero/<KEY>.zip in your WebDAV folder, with nothing unpac
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
 | `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
 | `name` | query | string | no | at most 1024 characters | Which file in the zip. Default: the main one. |
+| `inline` | query | string | no | one of `true` | true shows a PDF in the browser instead of downloading it. Other files still download. |
 
 **Reply 200**: Success
 
@@ -2584,7 +2613,7 @@ Creates or replaces one item: Zotero's JSON for it under data. The same version 
 
 Delete an item
 
-The item becomes a tombstone, which GET /api/library/changes hands out for webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder.
+The item becomes a tombstone, which GET /api/library/changes hands out for webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder. children=true deletes its attachments and notes with it and answers what was removed.
 
 |  |  |
 |---|---|
@@ -2597,6 +2626,7 @@ The item becomes a tombstone, which GET /api/library/changes hands out for webda
 |---|---|---|---|---|---|
 | `item_key` | path | string | yes | 8 to 8 characters | The Zotero item key: 8 of A-Z and 0-9. |
 | `library` | query | string | no | at most 32 characters | Which of your WebDAV libraries, by its WebDAV name (GET /api/webdav/libraries). Absent: your first one. |
+| `children` | query | string | no | one of `true` | true deletes its child items (attachments and notes) with it, as Zotero does, and answers removed. |
 
 **Request body**
 
@@ -2610,7 +2640,27 @@ The item becomes a tombstone, which GET /api/library/changes hands out for webda
 |---|---|---|---|---|
 | `changed` | boolean | yes |  | false when it was the same as what was stored, which then keeps its change number. |
 | `key` | string | yes |  |  |
+| `removed` | array of object | no |  | With children=true: every item deleted, the item first, as it was, so it can be put back with POST /api/bulk/library/items. |
+| `removed[].data` | object | no |  |  |
+| `removed[].key` | string | yes |  |  |
+| `removed[].version` | integer | yes |  |  |
 | `rev` | integer | yes |  | Its change number. |
+
+### GET /api/library/schema
+
+Zotero's item fields
+
+|  |  |
+|---|---|
+| Who may call | browser session or API key, anyone signed in |
+| Errors | 401, 404, 429, 503 |
+
+**Reply 200**: Success
+
+| Field | Type | Required | Limits | Description |
+|---|---|---|---|---|
+| `creator_types` | map of array of string | yes |  | Each item type's creator types, the main one first. |
+| `item_types` | map of array of string | yes |  | Each Zotero item type's fields, in Zotero's order. |
 
 ## WebDAV
 
@@ -3305,6 +3355,7 @@ The shapes the routes above refer to by name.
 | `deleted` | boolean | no |  |  |
 | `doi` | string | no |  |  |
 | `file_key` | string | no |  | The attachment key whose file to fetch (GET /api/library/attachments/{file_key}/file): the item's own, or its first attachment with a file, a PDF first. |
+| `file_type` | string | no |  | The content type of file_key's attachment, as its item says: application/pdf for a PDF. |
 | `filename` | string | no |  |  |
 | `has_file` | boolean | no |  | Whether your WebDAV folder has the file: an attachment's own zotero/<KEY>.zip, or for a regular item one of its attachments'. |
 | `item_type` | string | no |  |  |
@@ -3329,6 +3380,7 @@ The shapes the routes above refer to by name.
 | `deleted` | boolean | no |  |  |
 | `doi` | string | no |  |  |
 | `file_key` | string | no |  | The attachment key whose file to fetch (GET /api/library/attachments/{file_key}/file): the item's own, or its first attachment with a file, a PDF first. |
+| `file_type` | string | no |  | The content type of file_key's attachment, as its item says: application/pdf for a PDF. |
 | `filename` | string | no |  |  |
 | `has_file` | boolean | no |  | Whether your WebDAV folder has the file: an attachment's own zotero/<KEY>.zip, or for a regular item one of its attachments'. |
 | `item_type` | string | no |  |  |
@@ -3394,6 +3446,7 @@ The shapes the routes above refer to by name.
 | `display_name` | string | yes |  |  |
 | `id` | integer | yes |  |  |
 | `is_owner` | boolean | yes |  |  |
+| `library_open` | string | yes | one of `tab`, `download` | How the Library screen opens an attachment: tab shows a PDF in a new tab, download saves it. |
 | `login_link` | [`LoginLink`](#loginlink) or null | yes |  | Your own live login link, or null. |
 | `logs_enabled` | boolean | yes |  |  |
 | `logs_ui_clicks` | boolean | yes |  |  |

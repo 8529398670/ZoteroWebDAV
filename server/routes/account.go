@@ -43,6 +43,7 @@ type meReply struct {
 	ThemesBuiltIns     int                   `json:"themes_builtins" jsonschema_description:"Which built-in themes that list has seen (see builtins on POST /api/account/themes)." jsonschema_extras:"x-feature=appearance"`
 	ThemeID            string                `json:"theme_id" jsonschema_description:"The theme you use. Empty: the first." jsonschema_extras:"x-feature=appearance"`
 	LoginLink          *models.LoginLinkInfo `json:"login_link" jsonschema_description:"Your own live login link, or null."`
+	LibraryOpen        string                `json:"library_open" jsonschema:"enum=tab,enum=download" jsonschema_description:"How the Library screen opens an attachment: tab shows a PDF in a new tab, download saves it."`
 }
 
 func ( meReply ) APIName() ( name string ) { name = "Me"; return }
@@ -99,6 +100,7 @@ func ( handlers *Handlers ) getMe( c fiber.Ctx , in *apidoc.None ) ( reply *meRe
 		ThemesCustom:       themes_custom,
 		ThemesBuiltIns:     themes_builtins,
 		ThemeID:            user.ThemeID,
+		LibraryOpen:        user.LibraryOpenMode(),
 		TwoFactor:          user.TwoFactorOn(),
 		TwoFactorEnabled:   cfg.TwoFactorEnabled,
 		Auth:               actor.Method(),
@@ -257,3 +259,27 @@ func ( handlers *Handlers ) openAPIURL() ( result string ) {
 	return
 }
 
+
+type setLibraryOpenRequest struct {
+	Mode string `json:"mode" jsonschema:"enum=tab,enum=download" jsonschema_description:"tab shows a PDF in a new tab; download saves the file." error:"mode must be tab or download"`
+}
+
+type setLibraryOpenReply struct {
+	Ok   bool   `json:"ok"`
+	Mode string `json:"mode"`
+}
+
+// setLibraryOpen picks how the Library screen's Open button hands out a file.
+//
+// @route("POST /api/account/library-open", summary="How the Library opens files",
+//     tag="Account", feature="webdav",
+//     description="tab shows a PDF in a new browser tab (other files still download); download always saves the file.",
+// )
+func ( handlers *Handlers ) setLibraryOpen( c fiber.Ctx , in *setLibraryOpenRequest ) ( reply *setLibraryOpenReply , err error ) {
+	if set_err := models.SetUserLibraryOpen( handlers.Store , security.UserFrom( c ).ID , in.Mode ); set_err != nil {
+		err = refuse( fiber.StatusBadRequest , set_err.Error() )
+		return
+	}
+	reply = &setLibraryOpenReply{ Ok: true , Mode: in.Mode }
+	return
+}

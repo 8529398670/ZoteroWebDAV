@@ -5,6 +5,7 @@
 package models
 
 import (
+	errors "errors"
 	strings "strings"
 	time "time"
 
@@ -43,6 +44,37 @@ type User struct {
 	Themes         []Theme `json:"themes,omitempty"`
 	ThemesBuiltIns int     `json:"themes_builtins,omitempty"`
 	ThemeID        string  `json:"theme_id,omitempty"`
+	// LibraryOpen is how the Library screen's Open button hands out a file:
+	// LibraryOpenTab (also "") shows a PDF in a new tab, LibraryOpenDownload
+	// saves it. See SetUserLibraryOpen.
+	LibraryOpen string `json:"library_open,omitempty"`
+}
+
+const (
+	LibraryOpenTab      = "tab"
+	LibraryOpenDownload = "download"
+)
+
+// LibraryOpenMode is the setting with the default filled in.
+func ( user *User ) LibraryOpenMode() ( mode string ) {
+	mode = user.LibraryOpen
+	if mode != LibraryOpenDownload { mode = LibraryOpenTab }
+	return
+}
+
+// SetUserLibraryOpen changes how the Library screen opens files for someone.
+func SetUserLibraryOpen( store *db.Store , user_id uint64 , mode string ) ( err error ) {
+	if mode != LibraryOpenTab && mode != LibraryOpenDownload {
+		err = errors.New( "mode must be tab or download" )
+		return
+	}
+	err = store.UpdateValue( db.BucketUsers , encryption.Uint64ToBytes( user_id ) ,
+		func() any { return &User{} } ,
+		func( item any ) ( mutate_err error ) {
+			item.( *User ).LibraryOpen = mode
+			return
+		} )
+	return
 }
 
 func ( user *User ) Disabled() ( result bool ) {

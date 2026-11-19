@@ -300,6 +300,41 @@ func DeleteLibraryRecord( store *db.Store , library_id uint64 , kind string , ke
 	return
 }
 
+// DeleteLibraryItemTree turns an item and its live child items (attachments
+// and notes whose parentItem is key) into tombstones, in one transaction, as
+// Zotero does when a paper goes to its trash. removed is every record as it
+// was before, the item first, so a caller can put them back. db.ErrNotFound
+// when there is no live item.
+func DeleteLibraryItemTree( store *db.Store , library_id uint64 , key string ) ( removed []*LibraryRecord , err error ) {
+	err = store.Write( func( tx *db.Tx ) ( tx_err error ) {
+		removed = []*LibraryRecord{}
+		stored := &LibraryRecord{}
+		if tx_err = tx.Get( db.BucketLibrary , libraryRecordKey( library_id , LibraryKindItem , key ) , stored ); tx_err != nil { return }
+		if stored.Deleted {
+			tx_err = db.ErrNotFound
+			return
+		}
+		removed = append( removed , stored )
+		prefix := append( encryption.Uint64ToBytes( library_id ) , LibraryKindItem[ 0 ] )
+		tx_err = tx.ForEachPrefix( db.BucketLibrary , prefix , nil ,
+			func() any { return &LibraryRecord{} } ,
+			func( _ []byte , item any ) bool {
+				if record := item.( *LibraryRecord ); record.Deleted == false && record.Kind == LibraryKindItem && record.ParentKey == key {
+					removed = append( removed , record )
+				}
+				return true
+			} )
+		if tx_err != nil { return }
+		for _ , record := range removed {
+			tombstone := &LibraryRecord{ Kind: LibraryKindItem , Key: record.Key , Version: record.Version , Deleted: true }
+			if tx_err = writeRecordTx( tx , library_id , tombstone , record.Rev ); tx_err != nil { return }
+		}
+		return
+	} )
+	if err != nil { removed = nil }
+	return
+}
+
 func GetLibraryRecord( store *db.Store , library_id uint64 , kind string , key string ) ( record *LibraryRecord , err error ) {
 	record = &LibraryRecord{}
 	if err = store.Get( db.BucketLibrary , libraryRecordKey( library_id , kind , key ) , record ); err != nil {

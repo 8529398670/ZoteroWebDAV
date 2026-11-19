@@ -11,6 +11,13 @@ import (
 // mountDeclared mounts every route declared with @route(...), the most
 // specific path first, behind the guards its declaration implies.
 func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
+	apidoc.Mount( app , "POST" , "/api/account/library-open" , apidoc.Op{
+		Summary: "How the Library opens files",
+		Description: "tab shows a PDF in a new browser tab (other files still download); download always saves the file.",
+		Tag: "Account",
+		Feature: "webdav",
+		Errors: []int{ 400 , 401 , 403 , 404 },
+	} , handlers.setLibraryOpen , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/account/login-link" , apidoc.Op{
 		Summary: "A login link for yourself",
 		Description: "A link that signs your own account in on a browser or another device. An API key may ask only if your account let it, from a browser session (POST /api/keys/{key_id}/sign-in); its link works once, for at most 15 minutes.",
@@ -588,11 +595,17 @@ func ( handlers *Handlers ) mountDeclared( app *fiber.App ) {
 	} , handlers.putLibraryItem , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/library/items/{item_key}/delete" , apidoc.Op{
 		Summary: "Delete an item",
-		Description: "The item becomes a tombstone, which GET /api/library/changes hands out for webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder.",
+		Description: "The item becomes a tombstone, which GET /api/library/changes hands out for webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder. children=true deletes its attachments and notes with it and answers what was removed.",
 		Tag: "Library",
 		Feature: "webdav",
 		Errors: []int{ 400 , 401 , 403 , 404 },
 	} , handlers.deleteLibraryItem , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
+	apidoc.Mount( app , "GET" , "/api/library/schema" , apidoc.Op{
+		Summary: "Zotero's item fields",
+		Tag: "Library",
+		Feature: "webdav",
+		Errors: []int{ 401 , 404 },
+	} , handlers.getLibrarySchema , handlers.featureGuards()[ "webdav" ] , handlers.Guard.RequireLogin )
 	apidoc.Mount( app , "POST" , "/api/login" , apidoc.Op{
 		Summary: "Redeem a login link",
 		Tag: "Sign-in",

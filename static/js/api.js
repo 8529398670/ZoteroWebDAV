@@ -253,6 +253,35 @@ const Api = {
   // The library: what clients pushed beside the files.
   listLibraryItems( offset , params ) { return this.request( "/api/library/items" + this.query( { offset: offset , ...params } ) ); },
   listLibraryCollections()  { return this.request( "/api/library/collections" + this.query( { limit: 1000 } ) ); },
+  getLibraryItem( key )     { return this.request( "/api/library/items/" + encodeURIComponent( key ) ); },
+  saveLibraryItem( key , version , data ) { return this.post( "/api/library/items/" + encodeURIComponent( key ) , { version: version , data: data } ); },
+  librarySchema()           { return this.request( "/api/library/schema" ); },
+  setLibraryOpen( mode )    { return this.post( "/api/account/library-open" , { mode: mode } ); },
+  // Bulk routes take the library per item: /api/bulk/ is not a library path
+  // to withLibrary. Each answers one result per item, in order.
+  bulkLibraryItems( path , items ) {
+    const library = this.library ? { library: this.library } : {};
+    return this.post( path , { items: items.map( ( item ) => ( { ...library , ...item } ) ) } );
+  },
+  // Deletes items with their attachments and notes; answers every record
+  // removed, as it was, so they can be put back.
+  async deleteLibraryItems( keys ) {
+    const removed = [];
+    for ( let start = 0; start < keys.length; start += 100 ) {
+      const batch = keys.slice( start , start + 100 ).map( ( key ) => ( { item_key: key , children: "true" } ) );
+      const reply = await this.bulkLibraryItems( "/api/bulk/library/items/delete" , batch );
+      reply.results.forEach( ( result ) => { if ( result.ok && result.reply ) removed.push( ...( result.reply.removed || [] ) ); } );
+    }
+    return removed;
+  },
+  async putLibraryItems( records ) {
+    for ( let start = 0; start < records.length; start += 100 ) {
+      const batch = records.slice( start , start + 100 ).map( ( record ) => ( { item_key: record.key , version: record.version , data: record.data } ) );
+      const reply = await this.bulkLibraryItems( "/api/bulk/library/items" , batch );
+      const failed = reply.results.find( ( result ) => !result.ok );
+      if ( failed ) throw new Error( failed.error || I18n.get( "undo.failed" ) );
+    }
+  },
 
   // Import / Export (library_io.js).
   libraryFormats()          { return this.request( "/api/library/formats" ); },

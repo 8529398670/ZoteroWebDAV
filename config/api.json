@@ -570,6 +570,10 @@
             "description": "The attachment key whose file to fetch (GET /api/library/attachments/{file_key}/file): the item's own, or its first attachment with a file, a PDF first.",
             "type": "string"
           },
+          "file_type": {
+            "description": "The content type of file_key's attachment, as its item says: application/pdf for a PDF.",
+            "type": "string"
+          },
           "filename": {
             "type": "string"
           },
@@ -647,6 +651,10 @@
           },
           "file_key": {
             "description": "The attachment key whose file to fetch (GET /api/library/attachments/{file_key}/file): the item's own, or its first attachment with a file, a PDF first.",
+            "type": "string"
+          },
+          "file_type": {
+            "description": "The content type of file_key's attachment, as its item says: application/pdf for a PDF.",
             "type": "string"
           },
           "filename": {
@@ -866,6 +874,14 @@
           "is_owner": {
             "type": "boolean"
           },
+          "library_open": {
+            "description": "How the Library screen opens an attachment: tab shows a PDF in a new tab, download saves it.",
+            "enum": [
+              "tab",
+              "download"
+            ],
+            "type": "string"
+          },
           "login_link": {
             "description": "Your own live login link, or null.",
             "oneOf": [
@@ -974,6 +990,7 @@
           "display_name",
           "id",
           "is_owner",
+          "library_open",
           "login_link",
           "logs_enabled",
           "logs_ui_clicks",
@@ -1893,6 +1910,95 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/account/library-open": {
+      "post": {
+        "description": "tab shows a PDF in a new browser tab (other files still download); download always saves the file.",
+        "operationId": "post_api_account_library_open",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "csrf_token": {
+                    "description": "From GET /api/me. Browser sessions only.",
+                    "type": "string"
+                  },
+                  "mode": {
+                    "description": "tab shows a PDF in a new tab; download saves the file.",
+                    "enum": [
+                      "tab",
+                      "download"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "ok"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "How the Library opens files",
+        "tags": [
+          "Account"
+        ]
+      },
+      "x-feature": "webdav"
+    },
     "/api/account/login-link": {
       "post": {
         "description": "A link that signs your own account in on a browser or another device. An API key may ask only if your account let it, from a browser session (POST /api/keys/{key_id}/sign-in); its link works once, for at most 15 minutes.",
@@ -6598,6 +6704,13 @@
                     "items": {
                       "additionalProperties": false,
                       "properties": {
+                        "children": {
+                          "description": "true deletes its child items (attachments and notes) with it, as Zotero does, and answers removed.",
+                          "enum": [
+                            "true"
+                          ],
+                          "type": "string"
+                        },
                         "item_key": {
                           "description": "The Zotero item key: 8 of A-Z and 0-9.",
                           "maxLength": 8,
@@ -7732,6 +7845,17 @@
             "name": "name",
             "schema": {
               "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "true shows a PDF in the browser instead of downloading it. Other files still download.",
+            "in": "query",
+            "name": "inline",
+            "schema": {
+              "enum": [
+                "true"
+              ],
               "type": "string"
             }
           }
@@ -9332,7 +9456,7 @@
     },
     "/api/library/items/{item_key}/delete": {
       "post": {
-        "description": "The item becomes a tombstone, which GET /api/library/changes hands out for webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder.",
+        "description": "The item becomes a tombstone, which GET /api/library/changes hands out for webdav.tombstone_days. Its attachment file, if any, stays in your WebDAV folder. children=true deletes its attachments and notes with it and answers what was removed.",
         "operationId": "post_api_library_items_item_key_delete",
         "parameters": [
           {
@@ -9352,6 +9476,17 @@
             "name": "library",
             "schema": {
               "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "description": "true deletes its child items (attachments and notes) with it, as Zotero does, and answers removed.",
+            "in": "query",
+            "name": "children",
+            "schema": {
+              "enum": [
+                "true"
+              ],
               "type": "string"
             }
           }
@@ -9385,6 +9520,28 @@
                     },
                     "key": {
                       "type": "string"
+                    },
+                    "removed": {
+                      "description": "With children=true: every item deleted, the item first, as it was, so it can be put back with POST /api/bulk/library/items.",
+                      "items": {
+                        "properties": {
+                          "data": {
+                            "type": "object"
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "version"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "rev": {
                       "description": "Its change number.",
@@ -9430,6 +9587,74 @@
           }
         ],
         "summary": "Delete an item",
+        "tags": [
+          "Library"
+        ]
+      },
+      "x-feature": "webdav"
+    },
+    "/api/library/schema": {
+      "get": {
+        "operationId": "get_api_library_schema",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "creator_types": {
+                      "additionalProperties": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "description": "Each item type's creator types, the main one first.",
+                      "type": "object"
+                    },
+                    "item_types": {
+                      "additionalProperties": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "description": "Each Zotero item type's fields, in Zotero's order.",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "creator_types",
+                    "item_types"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Zotero's item fields",
         "tags": [
           "Library"
         ]
