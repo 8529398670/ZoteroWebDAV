@@ -1,11 +1,11 @@
 # Written by the skill that scaffolded this app; `webserver-upgrade` reads and
 # updates it. Commit it: it is how an update knows where this app started.
 skill: go-webserver
-commit: c1e33cbb9610ba61fc46d446cef1d25bec7b9312
+commit: b3b3e3d6dd09154392f3300a47e04334ed7e67bc
 project_name: "ZoteroWebDAV"
 slug: zoterowebdav
 module_path: zoterowebdav
 port: 35785
 features: [api_keys, two_factor, backups]
-pruned: [files, invite_links, mcp, metrics, passwords, webhooks]
 tests: false
+pruned: [files, invite_links, mcp, metrics, passwords, webhooks]

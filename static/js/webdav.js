@@ -58,8 +58,8 @@ const WebDAV = {
     Dom.get( "webdav-copy-password" ).addEventListener( "click" , () => Dom.copy( Dom.get( "webdav-password-value" ) ) );
     // An admin may have switched your access or locked your name since the
     // page loaded, so coming back to this screen asks again.
-    window.addEventListener( "hashchange" , () => {
-      if ( window.location.hash === "#webdav" ) this.reload().catch( ( error ) => App.showError( error.message ) );
+    window.addEventListener( "nav" , () => {
+      if ( Nav.current() === "webdav" ) this.reload().catch( ( error ) => App.showError( error.message ) );
     } );
     await this.render( state );
   },

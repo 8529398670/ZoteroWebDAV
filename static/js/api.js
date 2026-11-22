@@ -67,7 +67,7 @@ const Api = {
   // nothing on this page can work. Say so, rather than leaving every button to
   // fail one at a time.
   sessionEnded() {
-    window.location.replace( "/?login=ended" );
+    window.location.replace( "/signed-out/ended" );
   },
 
   // A failure on the server's side comes with a reference, which is the one
@@ -146,6 +146,7 @@ const Api = {
   createUser( name , role , options ) { return this.post( "/api/admin/users" , Object.assign( { display_name: name , role: role } , options ) ); },
   renameUser( userId , name , expect ) { return this.post( "/api/admin/users/" + userId + "/rename" , { display_name: name , expect: expect } ); },
   setUserRole( userId , role ) { return this.post( "/api/admin/users/" + userId + "/role" , { role: role } ); },
+  setUserExpiry( userId , expiresAt ) { return this.post( "/api/admin/users/" + userId + "/expiry" , { expires_at: expiresAt } ); },
   reissueLogin( userId , options ) { return this.post( "/api/admin/users/" + userId + "/reissue-login" , options ); },
   cancelLoginLink( userId )    { return this.post( "/api/admin/users/" + userId + "/cancel-login-link" ); },
   setDisabled( userId , flag ) { return this.post( "/api/admin/users/" + userId + "/disabled" , { disabled: flag } ); },

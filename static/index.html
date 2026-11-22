@@ -60,24 +60,24 @@
       <div class="offcanvas-body">
         <nav id="sidebar-nav" class="nav nav-pills flex-column w-100 gap-1" data-i18n-attr="aria-label:nav.sidebar_label">
           <!-- Account, first: its second line names who is signed in (App.labelAccount). -->
-          <a class="nav-link" href="#account" data-nav="account"><i class="bi bi-person-circle" aria-hidden="true"></i><span class="nav-link-text"><span data-i18n="nav.account"></span><span id="sidebar-user" class="nav-link-sub"></span></span></a>
-          <a class="nav-link" href="#webdav" data-nav="webdav"><i class="bi bi-hdd-network" aria-hidden="true"></i><span data-i18n="nav.webdav"></span></a>
-          <a class="nav-link" href="#files" data-nav="files"><i class="bi bi-folder2-open" aria-hidden="true"></i><span data-i18n="nav.files"></span></a>
-          <a class="nav-link" href="#trash" data-nav="trash"><i class="bi bi-trash" aria-hidden="true"></i><span data-i18n="nav.trash"></span></a>
-          <a class="nav-link" href="#library" data-nav="library"><i class="bi bi-journal-bookmark" aria-hidden="true"></i><span data-i18n="nav.library"></span></a>
-          <a class="nav-link" href="#library-io" data-nav="library-io"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span data-i18n="nav.library_io"></span></a>
-          <a class="nav-link" href="#appearance" data-nav="appearance"><i class="bi bi-palette" aria-hidden="true"></i><span data-i18n="nav.appearance"></span></a>
-          <a class="nav-link" href="#shortcuts" data-nav="shortcuts"><i class="bi bi-keyboard" aria-hidden="true"></i><span data-i18n="nav.shortcuts"></span></a>
-          <a class="nav-link" href="#about" data-nav="about"><i class="bi bi-info-circle" aria-hidden="true"></i><span data-i18n="nav.about"></span></a>
+          <a class="nav-link" href="/account" data-nav="account"><i class="bi bi-person-circle" aria-hidden="true"></i><span class="nav-link-text"><span data-i18n="nav.account"></span><span id="sidebar-user" class="nav-link-sub"></span></span></a>
+          <a class="nav-link" href="/webdav" data-nav="webdav"><i class="bi bi-hdd-network" aria-hidden="true"></i><span data-i18n="nav.webdav"></span></a>
+          <a class="nav-link" href="/files" data-nav="files"><i class="bi bi-folder2-open" aria-hidden="true"></i><span data-i18n="nav.files"></span></a>
+          <a class="nav-link" href="/trash" data-nav="trash"><i class="bi bi-trash" aria-hidden="true"></i><span data-i18n="nav.trash"></span></a>
+          <a class="nav-link" href="/library" data-nav="library"><i class="bi bi-journal-bookmark" aria-hidden="true"></i><span data-i18n="nav.library"></span></a>
+          <a class="nav-link" href="/library/import-export" data-nav="library-io"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span data-i18n="nav.library_io"></span></a>
+          <a class="nav-link" href="/appearance" data-nav="appearance" data-write><i class="bi bi-palette" aria-hidden="true"></i><span data-i18n="nav.appearance"></span></a>
+          <a class="nav-link" href="/shortcuts" data-nav="shortcuts" data-write><i class="bi bi-keyboard" aria-hidden="true"></i><span data-i18n="nav.shortcuts"></span></a>
+          <a class="nav-link" href="/about" data-nav="about"><i class="bi bi-info-circle" aria-hidden="true"></i><span data-i18n="nav.about"></span></a>
 
           <div id="sidebar-admin" class="sidebar-group" hidden>
             <h3 class="sidebar-heading" data-i18n="nav.admin_heading"></h3>
-            <a class="nav-link" href="#users" data-nav="users"><i class="bi bi-people" aria-hidden="true"></i><span data-i18n="nav.users"></span></a>
-            <a class="nav-link" href="#webdav-admin" data-nav="webdav-admin"><i class="bi bi-hdd-stack" aria-hidden="true"></i><span data-i18n="nav.webdav_admin"></span></a>
-            <a class="nav-link" href="#all-keys" data-nav="all-keys"><i class="bi bi-shield-lock" aria-hidden="true"></i><span data-i18n="nav.all_keys"></span></a>
-            <a class="nav-link" href="#logs" data-nav="logs"><i class="bi bi-journal-text" aria-hidden="true"></i><span data-i18n="nav.logs"></span></a>
-            <a class="nav-link" href="#jobs" data-nav="jobs"><i class="bi bi-clock-history" aria-hidden="true"></i><span data-i18n="nav.jobs"></span></a>
-            <a class="nav-link" href="#settings" data-nav="settings"><i class="bi bi-sliders" aria-hidden="true"></i><span data-i18n="nav.settings"></span></a>
+            <a class="nav-link" href="/admin/users" data-nav="users"><i class="bi bi-people" aria-hidden="true"></i><span data-i18n="nav.users"></span></a>
+            <a class="nav-link" href="/admin/webdav" data-nav="webdav-admin"><i class="bi bi-hdd-stack" aria-hidden="true"></i><span data-i18n="nav.webdav_admin"></span></a>
+            <a class="nav-link" href="/admin/api-keys" data-nav="all-keys"><i class="bi bi-shield-lock" aria-hidden="true"></i><span data-i18n="nav.all_keys"></span></a>
+            <a class="nav-link" href="/admin/logs" data-nav="logs"><i class="bi bi-journal-text" aria-hidden="true"></i><span data-i18n="nav.logs"></span></a>
+            <a class="nav-link" href="/admin/jobs" data-nav="jobs"><i class="bi bi-clock-history" aria-hidden="true"></i><span data-i18n="nav.jobs"></span></a>
+            <a class="nav-link" href="/admin/settings" data-nav="settings"><i class="bi bi-sliders" aria-hidden="true"></i><span data-i18n="nav.settings"></span></a>
           </div>
           <p id="sidebar-version" class="sidebar-version" hidden></p>
         </nav>
@@ -85,6 +85,12 @@
     </aside>
 
     <main hidden id="main" class="app-main" tabindex="-1">
+      <!-- A viewer reads and changes nothing: App.showViewOnly shows this and
+           hides every [data-write] (portal contract v2, role viewer). -->
+      <p id="view-only-banner" class="alert alert-secondary d-flex flex-wrap align-items-center gap-2" role="status" hidden>
+        <span class="badge text-bg-secondary"><i class="bi bi-eye" aria-hidden="true"></i> <span data-i18n="app.view_only_badge"></span></span>
+        <span data-i18n="app.view_only_body"></span>
+      </p>
       <p id="maintenance-banner" class="alert alert-warning" role="status" hidden></p>
       <!-- server.announcement, until dismissed. See App.showAnnouncement. -->
       <div id="announcement-banner" class="alert alert-info alert-dismissible" role="status" hidden>
@@ -149,14 +155,16 @@
       <section id="signed-in" hidden>
         <!-- Everything about you: who you are, how you sign in, and what can
              act as you. A feature's card stays hidden until its own JS shows it. -->
-        <section class="view" data-view="account" id="account-panel">
+        <section class="view" data-view="account" data-path="/account" id="account-panel">
           <h2 class="view-title" data-i18n="account.heading"></h2>
 
 
           <section class="card">
             <div class="card-body">
               <h3 class="card-title" data-i18n="account.profile_heading"></h3>
-              <form id="rename-form" class="row g-3 align-items-end" autocomplete="off">
+              <!-- A viewer sees the name instead of the form (App.showViewOnly). -->
+              <p id="display-name-text" class="mb-0" hidden></p>
+              <form id="rename-form" class="row g-3 align-items-end" autocomplete="off" data-write>
                 <div class="col-md">
                   <label for="display-name" class="form-label" data-i18n="account.display_name_label"></label>
                   <input id="display-name" class="form-control" name="display_name" maxlength="80" required
@@ -189,8 +197,9 @@
           </section>
 
           <!-- A login link for your own account, to sign in on another device.
-               Any signed-in user may mint one; see Api.createMyLoginLink. -->
-          <section class="card">
+               Any signed-in user may mint one; see Api.createMyLoginLink.
+               A viewer may not, so the whole card is a write. -->
+          <section class="card" data-write>
             <div class="card-body">
               <h3 class="card-title" data-i18n="account.device_heading"></h3>
               <p class="text-body-secondary" data-i18n="account.device_description"></p>
@@ -214,7 +223,7 @@
           </section>
 
           <!-- Only while the owner has auth.two_factor on; see two_factor.js. -->
-          <section class="card" id="two-factor-panel" hidden>
+          <section class="card" id="two-factor-panel" data-path="/account/two-factor" data-write hidden>
             <div class="card-body">
               <h3 class="card-title" data-i18n="two_factor.heading"></h3>
               <p class="text-body-secondary" data-i18n="two_factor.description"></p>
@@ -263,7 +272,7 @@
             select is revealed only for an admin (see keys.js) because a key can
             never carry more permission than the account that owns it.
           -->
-          <section class="card" id="api-keys-panel" hidden>
+          <section class="card" id="api-keys-panel" data-path="/account/api-keys" data-write hidden>
             <div class="card-body">
               <h3 class="card-title" data-i18n="api_keys.heading"></h3>
               <p class="text-body-secondary" data-i18n="api_keys.description"></p>
@@ -285,6 +294,7 @@
                   <label for="key-role" class="form-label" data-i18n="api_keys.role_label"></label>
                   <select id="key-role" class="form-select" name="role">
                     <option value="user" data-i18n="api_keys.role_user"></option>
+                    <option value="viewer" data-i18n="api_keys.role_viewer"></option>
                     <option value="admin" data-i18n="api_keys.role_admin"></option>
                   </select>
                 </div>
@@ -372,7 +382,7 @@
 
         <!-- Your themes, and for admins the defaults everyone starts from.
              Drawn by themes_editor.js; see theme.js for where they are kept. -->
-        <section class="view view-full" data-view="appearance" id="appearance">
+        <section class="view view-full" data-view="appearance" data-path="/appearance" id="appearance">
           <h2 class="view-title" data-i18n="theme.heading"></h2>
           <ul class="nav nav-tabs mb-3" id="theme-tabs" role="tablist" hidden>
             <li class="nav-item" role="presentation">
@@ -397,7 +407,7 @@
         </section>
 
         <!-- Each person's own keys, saved to their account. See shortcuts.js. -->
-        <section class="view" data-view="shortcuts" id="shortcuts">
+        <section class="view" data-view="shortcuts" data-path="/shortcuts" id="shortcuts">
           <h2 class="view-title" data-i18n="shortcuts.heading"></h2>
           <section class="card">
             <div class="card-body">
@@ -424,7 +434,7 @@
         <!-- What this app is and where it comes from: app.description, the
              version, app.repo and the API reference. Shown only when
              app.show_about is on. See about.js. -->
-        <section class="view" data-view="about" id="about-panel" hidden>
+        <section class="view" data-view="about" data-path="/about" id="about-panel" hidden>
           <h2 class="view-title" data-i18n="about.heading"></h2>
           <section class="card">
             <div class="card-body">
@@ -443,7 +453,7 @@
 
         <!-- WebDAV: your folder, the address and app passwords Zotero needs,
              and the files in it. See webdav.js. -->
-        <section class="view" data-view="webdav" id="webdav-panel" hidden>
+        <section class="view" data-view="webdav" data-path="/webdav" id="webdav-panel" hidden>
           <h2 class="view-title" data-i18n="webdav.heading"></h2>
           <p class="view-description" data-i18n="webdav.description"></p>
           <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
@@ -462,7 +472,7 @@
               <!-- No WebDAV name yet: choose one. -->
               <div id="webdav-claim" hidden>
                 <p class="card-text" data-i18n="webdav.claim_description"></p>
-                <form id="webdav-claim-form" class="row g-2 align-items-end" autocomplete="off">
+                <form id="webdav-claim-form" data-write class="row g-2 align-items-end" autocomplete="off">
                   <div class="col-12 col-sm">
                     <label for="webdav-claim-name" class="form-label" data-i18n="webdav.name_label"></label>
                     <div class="input-group">
@@ -507,7 +517,7 @@
                   <div class="row g-2 align-items-start mb-2">
                     <label for="webdav-username" class="col-12 col-sm-3 col-lg-2 col-form-label text-sm-end py-0 pt-sm-2" data-i18n="webdav.username_label"></label>
                     <div class="col-12 col-sm-9 col-lg-10">
-                      <form id="webdav-rename-form" class="input-group" autocomplete="off">
+                      <form id="webdav-rename-form" data-write class="input-group" autocomplete="off">
                         <input id="webdav-username" class="form-control font-monospace" name="name" minlength="2" maxlength="32" required
                                pattern="[a-z0-9][a-z0-9-]{1,31}" autocapitalize="off" spellcheck="false" />
                         <button id="webdav-copy-username" type="button" class="btn btn-outline-secondary"
@@ -526,7 +536,7 @@
                                data-i18n-attr="placeholder:webdav.password_placeholder" />
                         <button id="webdav-copy-password" type="button" class="btn btn-outline-secondary" disabled
                                 data-i18n-attr="title:ui.copy,aria-label:ui.copy"><i class="bi bi-clipboard" aria-hidden="true"></i></button>
-                        <button id="webdav-make-password" type="button" class="btn btn-outline-secondary"
+                        <button id="webdav-make-password" data-write type="button" class="btn btn-outline-secondary"
                                 data-i18n-attr="title:webdav.make_password_button,aria-label:webdav.make_password_button"><i class="bi bi-shuffle" aria-hidden="true"></i></button>
                       </div>
                       <div id="webdav-password-once" class="form-text" data-i18n="webdav.password_shown_once" hidden></div>
@@ -577,7 +587,7 @@
             <div class="card-body">
               <h3 class="card-title" data-i18n="libraries.heading"></h3>
               <p class="card-text text-body-secondary" data-i18n="libraries.description"></p>
-              <form id="libraries-add-form" class="row g-2 align-items-end mb-3" autocomplete="off">
+              <form id="libraries-add-form" data-write class="row g-2 align-items-end mb-3" autocomplete="off">
                 <div class="col-12 col-md-5">
                   <label for="libraries-add-name" class="form-label" data-i18n="webdav.name_label"></label>
                   <input id="libraries-add-name" class="form-control font-monospace" name="name" minlength="2" maxlength="32" required
@@ -616,7 +626,7 @@
         <!-- Files: your WebDAV folder as a tree. Zotero's zotero/ folder holds
              two files per attachment, so the tree only draws what is on
              screen and loads a folder when it is opened. See files.js. -->
-        <section class="view view-full" data-view="files" id="files-panel" hidden>
+        <section class="view view-full" data-view="files" data-path="/files" id="files-panel" hidden>
           <h2 class="view-title" data-i18n="files.heading"></h2>
           <p class="view-description" data-i18n="files.description"></p>
           <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
@@ -636,7 +646,7 @@
                 <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
                   <a id="files-download" class="btn btn-sm btn-outline-secondary disabled" aria-disabled="true" download>
                     <i class="bi bi-download me-1" aria-hidden="true"></i><span data-i18n="webdav.download_button"></span></a>
-                  <button id="files-delete" type="button" class="btn btn-sm btn-outline-danger" disabled>
+                  <button id="files-delete" data-write type="button" class="btn btn-sm btn-outline-danger" disabled>
                     <i class="bi bi-trash me-1" aria-hidden="true"></i><span data-i18n="api_keys.delete_button"></span></button>
                   <button id="files-reload" type="button" class="btn btn-sm btn-outline-secondary"
                           data-i18n-attr="title:files.reload_button,aria-label:files.reload_button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
@@ -648,7 +658,7 @@
         </section>
 
         <!-- Trash: what was deleted on the Files page, until it is emptied. -->
-        <section class="view" data-view="trash" id="trash-panel" hidden>
+        <section class="view" data-view="trash" data-path="/trash" id="trash-panel" hidden>
           <h2 class="view-title" data-i18n="webdav.trash_heading"></h2>
           <p class="view-description" data-i18n="webdav.trash_description"></p>
           <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
@@ -679,7 +689,7 @@
         </section>
 
         <!-- Library: the metadata clients push beside the files. See library.js. -->
-        <section class="view view-full" data-view="library" id="library-panel" hidden>
+        <section class="view view-full" data-view="library" data-path="/library" id="library-panel" hidden>
           <h2 class="view-title" data-i18n="library.heading"></h2>
           <p class="view-description" data-i18n="library.description"></p>
           <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
@@ -712,7 +722,7 @@
               <div id="library-selection" class="row g-2 align-items-center" hidden>
                 <div class="col-auto"><span id="library-selection-count" class="fw-semibold" aria-live="polite"></span></div>
                 <div class="col-auto">
-                  <button id="library-delete" type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i><span data-i18n="library.delete_button"></span></button>
+                  <button id="library-delete" data-write type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i><span data-i18n="library.delete_button"></span></button>
                 </div>
                 <div class="col-auto">
                   <button id="library-clear" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="library.clear_button"></button>
@@ -741,7 +751,7 @@
 
         <!-- Import / Export: Zotero exports and a local Zotero data folder in,
              Zotero RDF, RIS and CSV out. See library_io.js. -->
-        <section class="view" data-view="library-io" id="library-io-panel" hidden>
+        <section class="view" data-view="library-io" data-path="/library/import-export" id="library-io-panel" hidden>
           <h2 class="view-title" data-i18n="library_io.heading"></h2>
           <p class="view-description" data-i18n="library_io.description"></p>
           <div class="row g-2 align-items-center mb-3" data-library-picker hidden>
@@ -781,7 +791,7 @@
                 <div class="card-body">
                   <h3 class="card-title h5"><i class="bi bi-upload me-2" aria-hidden="true"></i><span data-i18n="library_io.upload_heading"></span></h3>
                   <p class="small text-body-secondary" data-i18n="library_io.upload_help"></p>
-                  <form id="library-io-upload-form" class="row g-3" novalidate>
+                  <form id="library-io-upload-form" data-write class="row g-3" novalidate>
                     <div class="col-12 col-sm-6">
                       <label for="library-io-upload-format" class="form-label" data-i18n="library_io.format_label"></label>
                       <select id="library-io-upload-format" class="form-select"></select>
@@ -814,7 +824,7 @@
                 <div class="card-body">
                   <h3 class="card-title h5"><i class="bi bi-pc-display me-2" aria-hidden="true"></i><span data-i18n="library_io.local_heading"></span></h3>
                   <p class="small text-body-secondary" data-i18n="library_io.local_help"></p>
-                  <form id="library-io-local-form" class="row g-3" novalidate>
+                  <form id="library-io-local-form" data-write class="row g-3" novalidate>
                     <div class="col-12">
                       <label for="library-io-local-path" class="form-label" data-i18n="library_io.path_label"></label>
                       <input id="library-io-local-path" class="form-control font-monospace" type="text" autocomplete="off" spellcheck="false" placeholder="~/Zotero" required />
@@ -877,7 +887,7 @@
 
         <!-- Everyone's WebDAV folders, admins only: access and quota, never
              contents. See webdav_admin.js. -->
-        <section class="view" data-view="webdav-admin" id="webdav-admin-panel" hidden>
+        <section class="view" data-view="webdav-admin" data-path="/admin/webdav" id="webdav-admin-panel" hidden>
           <h2 class="view-title" data-i18n="webdav_admin.heading"></h2>
           <p class="view-description" data-i18n="webdav_admin.description"></p>
           <section class="card">
@@ -906,7 +916,7 @@
           </section>
         </section>
 
-        <section class="view" data-view="users" id="admin-panel" hidden>
+        <section class="view" data-view="users" data-path="/admin/users" id="admin-panel" hidden>
           <h2 class="view-title" data-i18n="admin.heading"></h2>
           <p class="view-description" data-i18n="admin.description"></p>
 
@@ -923,6 +933,7 @@
                   <label for="new-role" class="form-label" data-i18n="admin.new_role_label"></label>
                   <select id="new-role" class="form-select" name="role">
                     <option value="user" data-i18n="admin.role_user"></option>
+                    <option value="viewer" data-i18n="admin.role_viewer"></option>
                     <option value="admin" data-i18n="admin.role_admin"></option>
                   </select>
                 </div>
@@ -1008,7 +1019,7 @@
 
         <!-- Every key in the app, whoever owns it: the admin answer to "what
              has standing access", and where a lost laptop's key gets killed. -->
-        <section class="view" data-view="all-keys" id="admin-keys-panel" hidden>
+        <section class="view" data-view="all-keys" data-path="/admin/api-keys" id="admin-keys-panel" hidden>
           <h2 class="view-title" data-i18n="admin_keys.heading"></h2>
           <p class="view-description" data-i18n="admin_keys.description"></p>
 
@@ -1032,6 +1043,7 @@
                   <label for="user-key-role" class="form-label" data-i18n="api_keys.role_label"></label>
                   <select id="user-key-role" class="form-select" name="role">
                     <option value="user" data-i18n="api_keys.role_user"></option>
+                    <option value="viewer" data-i18n="api_keys.role_viewer"></option>
                     <option value="admin" data-i18n="api_keys.role_admin"></option>
                   </select>
                 </div>
@@ -1091,7 +1103,7 @@
 
         <!-- The activity log, owner only; see logs.js. data-no-track keeps
              reading the log from writing to it (track.js). -->
-        <section class="view view-full" data-view="logs" id="logs-panel" data-no-track hidden>
+        <section class="view view-full" data-view="logs" data-path="/admin/logs" id="logs-panel" data-no-track hidden>
           <h2 class="view-title" data-i18n="logs.heading"></h2>
           <p class="view-description" data-i18n="logs.description"></p>
 
@@ -1176,7 +1188,7 @@
         </section>
 
         <!-- Background jobs, owner only; see jobs.js. -->
-        <section class="view" data-view="jobs" id="jobs-panel" hidden>
+        <section class="view" data-view="jobs" data-path="/admin/jobs" id="jobs-panel" hidden>
           <h2 class="view-title" data-i18n="jobs.heading"></h2>
           <p class="view-description" data-i18n="jobs.description"></p>
           <section class="card">
@@ -1201,7 +1213,7 @@
         </section>
 
         <!-- Owner only: config.yaml, one field per setting. See js/settings.js. -->
-        <section class="view" data-view="settings" id="settings-panel" hidden>
+        <section class="view" data-view="settings" data-path="/admin/settings" id="settings-panel" hidden>
           <h2 class="view-title" data-i18n="settings.heading"></h2>
           <p class="view-description" data-i18n="settings.description"></p>
           <section class="card">
@@ -1279,7 +1291,7 @@
           <dl id="shortcut-list" class="shortcut-list mb-0"></dl>
         </div>
         <div class="modal-footer">
-          <a id="shortcuts-list-change" href="#shortcuts" class="btn btn-link" data-i18n="shortcuts.list_change" hidden></a>
+          <a id="shortcuts-list-change" href="/shortcuts" class="btn btn-link" data-i18n="shortcuts.list_change" hidden></a>
         </div>
       </div>
     </div>

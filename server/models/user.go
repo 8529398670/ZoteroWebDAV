@@ -14,9 +14,36 @@ import (
 )
 
 const (
-	RoleAdmin = "admin"
-	RoleUser  = "user"
+	RoleAdmin  = "admin"
+	RoleUser   = "user"
+	// RoleViewer may read everything a user may, and change nothing: the
+	// server answers 403 view_only to anything but a read (see
+	// security.ViewOnly). Ranked viewer < user < admin.
+	RoleViewer = "viewer"
 )
+
+// RoleRank orders the roles, viewer < user < admin. An unknown role ranks
+// lowest, below a viewer, so a bad row never grants anything.
+func RoleRank( role string ) ( rank int ) {
+	switch role {
+	case RoleViewer:
+		rank = 1
+	case RoleUser:
+		rank = 2
+	case RoleAdmin:
+		rank = 3
+	}
+	return
+}
+
+// LowerRole is the lower of two roles: what a key may do, given its own role
+// and its account's.
+func LowerRole( a string , b string ) ( result string ) {
+	result = a
+	if RoleRank( b ) < RoleRank( a ) { result = b }
+	if RoleRank( result ) == 0 { result = RoleViewer }
+	return
+}
 
 // User: links are the way in. A password is optional and off by default (see
 // password.go): an account gets one only by signing in with a link first, so
@@ -28,6 +55,11 @@ type User struct {
 	Role        string     `json:"role"`
 	CreatedAt   time.Time  `json:"created_at"`
 	DisabledAt  *time.Time `json:"disabled_at,omitempty"`
+	// ExpiresAt is when the account stops working, nil for never. Once it
+	// passes the account counts as disabled everywhere (Disabled), and the
+	// housekeeping job disables it for real and revokes its access
+	// (ExpireAccounts). Set by an admin (SetUserExpiry), never on the owner.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// TOTP secrets are encrypted here as well as with the record, because
 	// server.encrypt_at_rest can be off and a secret cannot be hashed. See
 	// two_factor.go.
@@ -77,8 +109,17 @@ func SetUserLibraryOpen( store *db.Store , user_id uint64 , mode string ) ( err 
 	return
 }
 
+// Disabled is true for an account switched off, and for one whose expiry
+// has passed: sign-in, its sessions and its keys all stop at once, before the
+// housekeeping job gets round to it.
 func ( user *User ) Disabled() ( result bool ) {
-	result = user.DisabledAt != nil
+	result = user.DisabledAt != nil || user.Expired()
+	return
+}
+
+// Expired is true once ExpiresAt has passed.
+func ( user *User ) Expired() ( result bool ) {
+	result = user.ExpiresAt != nil && time.Now().UTC().After( *user.ExpiresAt )
 	return
 }
 
@@ -88,7 +129,7 @@ func ( user *User ) IsAdmin() ( result bool ) {
 }
 
 func ValidRole( role string ) ( result bool ) {
-	result = role == RoleAdmin || role == RoleUser
+	result = role == RoleAdmin || role == RoleUser || role == RoleViewer
 	return
 }
 
